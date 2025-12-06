@@ -2,9 +2,18 @@ import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router, protectedProcedure } from "./_core/trpc";
+import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { invokeLLM } from "./_core/llm";
 import * as db from "./db";
+
+// Admin-only procedure
+const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
+  if (ctx.user.role !== 'admin') {
+    throw new TRPCError({ code: 'FORBIDDEN', message: 'Admin access required' });
+  }
+  return next({ ctx });
+});
 
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
@@ -113,6 +122,44 @@ export const appRouter = router({
         }
         await db.deleteConversation(input.id);
         return { success: true };
+      }),
+  }),
+
+  // Admin router
+  admin: router({
+    // Get dashboard stats
+    stats: adminProcedure.query(async () => {
+      return db.getStats();
+    }),
+
+    // Get all users
+    users: adminProcedure.query(async () => {
+      return db.getAllUsers();
+    }),
+
+    // Update user role
+    updateUserRole: adminProcedure
+      .input(z.object({ userId: z.number(), role: z.enum(["user", "admin"]) }))
+      .mutation(async ({ input }) => {
+        await db.updateUserRole(input.userId, input.role);
+        return { success: true };
+      }),
+
+    // Get all conversations (across all orgs)
+    allConversations: adminProcedure.query(async () => {
+      return db.getAllConversations();
+    }),
+
+    // Get conversation with messages (admin can access any)
+    getConversation: adminProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        const conversation = await db.getConversationById(input.id);
+        if (!conversation) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'Conversation not found' });
+        }
+        const messages = await db.getMessagesByConversation(input.id);
+        return { conversation, messages };
       }),
   }),
 });

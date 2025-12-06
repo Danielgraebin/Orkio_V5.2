@@ -153,3 +153,40 @@ export async function getMessagesByConversation(conversationId: number) {
     .where(eq(messages.conversationId, conversationId))
     .orderBy(messages.createdAt);
 }
+
+// Admin queries
+export async function getAllUsers() {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return db.select().from(users).orderBy(users.createdAt);
+}
+
+export async function getAllConversations() {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return db.select().from(conversations).orderBy(conversations.updatedAt);
+}
+
+export async function getStats() {
+  const db = await getDb();
+  if (!db) return { totalUsers: 0, totalConversations: 0, totalMessages: 0 };
+  
+  const [usersCount] = await db.select({ count: users.id }).from(users);
+  const [conversationsCount] = await db.select({ count: conversations.id }).from(conversations);
+  const [messagesCount] = await db.select({ count: messages.id }).from(messages);
+  
+  return {
+    totalUsers: usersCount?.count ?? 0,
+    totalConversations: conversationsCount?.count ?? 0,
+    totalMessages: messagesCount?.count ?? 0,
+  };
+}
+
+export async function updateUserRole(userId: number, role: "user" | "admin") {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.update(users).set({ role }).where(eq(users.id, userId));
+}

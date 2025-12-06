@@ -47,10 +47,15 @@ export default function Home() {
             {!loading && isAuthenticated && user && (
               <div className="text-center space-y-4">
                 <p className="text-muted-foreground">Welcome back, {user.name || user.email}!</p>
-                <div className="flex gap-4 justify-center">
+                <div className="flex gap-4 justify-center flex-wrap">
                   <Button asChild size="lg">
                     <Link href="/chat/default">Start Chatting</Link>
                   </Button>
+                  {user.role === "admin" && (
+                    <Button asChild size="lg" variant="secondary">
+                      <Link href="/admin">Admin Console</Link>
+                    </Button>
+                  )}
                   <Button variant="outline" onClick={logout}>
                     Sign Out
                   </Button>
