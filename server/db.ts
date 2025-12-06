@@ -1,6 +1,6 @@
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users } from "../drizzle/schema";
+import { InsertUser, users, conversations, InsertConversation, messages, InsertMessage } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -89,4 +89,67 @@ export async function getUserByOpenId(openId: string) {
   return result.length > 0 ? result[0] : undefined;
 }
 
-// TODO: add feature queries here as your schema grows.
+// Conversation queries
+export async function createConversation(data: InsertConversation) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.insert(conversations).values(data);
+  // Return the conversation to get the ID
+  const result = await db.select().from(conversations)
+    .where(and(
+      eq(conversations.userId, data.userId),
+      eq(conversations.orgSlug, data.orgSlug),
+      eq(conversations.title, data.title)
+    ))
+    .orderBy(conversations.createdAt)
+    .limit(1);
+  return result[0]?.id ?? 0;
+}
+
+export async function getConversationsByUser(userId: number, orgSlug: string) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return db.select().from(conversations)
+    .where(and(eq(conversations.userId, userId), eq(conversations.orgSlug, orgSlug)))
+    .orderBy(conversations.updatedAt);
+}
+
+export async function getConversationById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  
+  const result = await db.select().from(conversations).where(eq(conversations.id, id)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function deleteConversation(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.delete(conversations).where(eq(conversations.id, id));
+}
+
+// Message queries
+export async function createMessage(data: InsertMessage) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.insert(messages).values(data);
+  // Return the message to get the ID
+  const result = await db.select().from(messages)
+    .where(eq(messages.conversationId, data.conversationId))
+    .orderBy(messages.createdAt)
+    .limit(1);
+  return result[0]?.id ?? 0;
+}
+
+export async function getMessagesByConversation(conversationId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return db.select().from(messages)
+    .where(eq(messages.conversationId, conversationId))
+    .orderBy(messages.createdAt);
+}
