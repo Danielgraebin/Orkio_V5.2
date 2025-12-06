@@ -1,5 +1,8 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
+import AgentsManager from "@/components/AgentsManager";
+import CollectionsManager from "@/components/CollectionsManager";
+import DocumentsManager from "@/components/DocumentsManager";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { trpc } from "@/lib/trpc";
@@ -123,6 +126,9 @@ export default function Admin() {
           <TabsList>
             <TabsTrigger value="users">Users</TabsTrigger>
             <TabsTrigger value="conversations">Conversations</TabsTrigger>
+            <TabsTrigger value="agents">Agents</TabsTrigger>
+            <TabsTrigger value="collections">Collections</TabsTrigger>
+            <TabsTrigger value="documents">Documents</TabsTrigger>
           </TabsList>
 
           {/* Users Tab */}
@@ -216,6 +222,45 @@ export default function Admin() {
                     ))}
                   </div>
                 )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Agents Tab */}
+          <TabsContent value="agents" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Agent Management</CardTitle>
+                <CardDescription>Create and manage AI agents with custom prompts and tools</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <AgentsManager orgSlug="default" />
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Collections Tab */}
+          <TabsContent value="collections" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Collections Management</CardTitle>
+                <CardDescription>Organize documents into collections for RAG</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <CollectionsManager orgSlug="default" />
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Documents Tab */}
+          <TabsContent value="documents" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Documents Management</CardTitle>
+                <CardDescription>Upload and process documents for RAG search</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <DocumentsManager orgSlug="default" />
               </CardContent>
             </Card>
           </TabsContent>

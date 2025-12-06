@@ -1,6 +1,10 @@
-import { eq, and } from "drizzle-orm";
+import { eq, and, count } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, conversations, InsertConversation, messages, InsertMessage } from "../drizzle/schema";
+import { 
+  InsertUser, users, conversations, InsertConversation, messages, InsertMessage,
+  agents, InsertAgent, collections, InsertCollection, documents, InsertDocument,
+  embeddings, InsertEmbedding, agentCollections, InsertAgentCollection
+} from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -173,14 +177,14 @@ export async function getStats() {
   const db = await getDb();
   if (!db) return { totalUsers: 0, totalConversations: 0, totalMessages: 0 };
   
-  const [usersCount] = await db.select({ count: users.id }).from(users);
-  const [conversationsCount] = await db.select({ count: conversations.id }).from(conversations);
-  const [messagesCount] = await db.select({ count: messages.id }).from(messages);
+  const [usersCount] = await db.select({ value: count() }).from(users);
+  const [conversationsCount] = await db.select({ value: count() }).from(conversations);
+  const [messagesCount] = await db.select({ value: count() }).from(messages);
   
   return {
-    totalUsers: usersCount?.count ?? 0,
-    totalConversations: conversationsCount?.count ?? 0,
-    totalMessages: messagesCount?.count ?? 0,
+    totalUsers: Number(usersCount?.value ?? 0),
+    totalConversations: Number(conversationsCount?.value ?? 0),
+    totalMessages: Number(messagesCount?.value ?? 0),
   };
 }
 
@@ -189,4 +193,181 @@ export async function updateUserRole(userId: number, role: "user" | "admin") {
   if (!db) throw new Error("Database not available");
   
   await db.update(users).set({ role }).where(eq(users.id, userId));
+}
+
+// ==================== AGENTS ====================
+
+export async function createAgent(agent: InsertAgent) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const result = await db.insert(agents).values(agent);
+  return result[0].insertId;
+}
+
+export async function getAgentsByOrg(orgSlug: string) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return db.select().from(agents).where(eq(agents.orgSlug, orgSlug)).orderBy(agents.createdAt);
+}
+
+export async function getAgentById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  
+  const result = await db.select().from(agents).where(eq(agents.id, id)).limit(1);
+  return result[0];
+}
+
+export async function updateAgent(id: number, updates: Partial<InsertAgent>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.update(agents).set(updates).where(eq(agents.id, id));
+}
+
+export async function deleteAgent(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.delete(agents).where(eq(agents.id, id));
+}
+
+export async function linkAgentToCollection(agentId: number, collectionId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.insert(agentCollections).values({ agentId, collectionId });
+}
+
+export async function unlinkAgentFromCollection(agentId: number, collectionId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.delete(agentCollections)
+    .where(and(eq(agentCollections.agentId, agentId), eq(agentCollections.collectionId, collectionId)));
+}
+
+export async function getAgentCollections(agentId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const result = await db.select()
+    .from(agentCollections)
+    .where(eq(agentCollections.agentId, agentId));
+  
+  return result;
+}
+
+// ==================== COLLECTIONS ====================
+
+export async function createCollection(collection: InsertCollection) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const result = await db.insert(collections).values(collection);
+  return result[0].insertId;
+}
+
+export async function getCollectionsByOrg(orgSlug: string) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return db.select().from(collections).where(eq(collections.orgSlug, orgSlug)).orderBy(collections.createdAt);
+}
+
+export async function getCollectionById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  
+  const result = await db.select().from(collections).where(eq(collections.id, id)).limit(1);
+  return result[0];
+}
+
+export async function updateCollection(id: number, updates: Partial<InsertCollection>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.update(collections).set(updates).where(eq(collections.id, id));
+}
+
+export async function deleteCollection(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.delete(collections).where(eq(collections.id, id));
+}
+
+// ==================== DOCUMENTS ====================
+
+export async function createDocument(document: InsertDocument) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const result = await db.insert(documents).values(document);
+  return result[0].insertId;
+}
+
+export async function getDocumentsByCollection(collectionId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return db.select().from(documents).where(eq(documents.collectionId, collectionId)).orderBy(documents.createdAt);
+}
+
+export async function getDocumentsByOrg(orgSlug: string) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return db.select().from(documents).where(eq(documents.orgSlug, orgSlug)).orderBy(documents.createdAt);
+}
+
+export async function getDocumentById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  
+  const result = await db.select().from(documents).where(eq(documents.id, id)).limit(1);
+  return result[0];
+}
+
+export async function updateDocument(id: number, updates: Partial<InsertDocument>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.update(documents).set(updates).where(eq(documents.id, id));
+}
+
+export async function deleteDocument(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  // Delete embeddings first
+  await db.delete(embeddings).where(eq(embeddings.documentId, id));
+  // Then delete document
+  await db.delete(documents).where(eq(documents.id, id));
+}
+
+// ==================== EMBEDDINGS ====================
+
+export async function createEmbedding(embedding: InsertEmbedding) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const result = await db.insert(embeddings).values(embedding);
+  return result[0].insertId;
+}
+
+export async function getEmbeddingsByDocument(documentId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return db.select().from(embeddings).where(eq(embeddings.documentId, documentId)).orderBy(embeddings.chunkIndex);
+}
+
+export async function getAllEmbeddings() {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return db.select().from(embeddings);
 }

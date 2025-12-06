@@ -34,6 +34,7 @@ export const conversations = mysqlTable("conversations", {
   userId: int("userId").notNull(),
   orgSlug: varchar("orgSlug", { length: 64 }).notNull(),
   title: varchar("title", { length: 255 }).notNull(),
+  agentId: int("agentId"), // Optional: which agent is used for this conversation
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -55,3 +56,90 @@ export const messages = mysqlTable("messages", {
 
 export type Message = typeof messages.$inferSelect;
 export type InsertMessage = typeof messages.$inferInsert;
+
+/**
+ * Agents table for AI agents configuration.
+ * Each agent has a system prompt, model, temperature, and enabled tools.
+ */
+export const agents = mysqlTable("agents", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  systemPrompt: text("systemPrompt").notNull(),
+  model: varchar("model", { length: 64 }).default("gpt-4o").notNull(),
+  temperature: int("temperature").default(7).notNull(), // 0-10 scale
+  enableRAG: int("enableRAG").default(0).notNull(), // boolean as int
+  enableSTT: int("enableSTT").default(0).notNull(),
+  enableWebSearch: int("enableWebSearch").default(0).notNull(),
+  orgSlug: varchar("orgSlug", { length: 64 }).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Agent = typeof agents.$inferSelect;
+export type InsertAgent = typeof agents.$inferInsert;
+
+/**
+ * Collections table for document grouping.
+ * Collections organize documents for RAG.
+ */
+export const collections = mysqlTable("collections", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  orgSlug: varchar("orgSlug", { length: 64 }).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Collection = typeof collections.$inferSelect;
+export type InsertCollection = typeof collections.$inferInsert;
+
+/**
+ * Documents table for uploaded files.
+ * Documents can be assigned to collections.
+ */
+export const documents = mysqlTable("documents", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  mimeType: varchar("mimeType", { length: 128 }),
+  contentUrl: text("contentUrl"), // S3 URL
+  collectionId: int("collectionId"),
+  orgSlug: varchar("orgSlug", { length: 64 }).notNull(),
+  status: mysqlEnum("status", ["pending", "processing", "completed", "failed"]).default("pending").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Document = typeof documents.$inferSelect;
+export type InsertDocument = typeof documents.$inferInsert;
+
+/**
+ * Embeddings table for vector search.
+ * Stores document chunks with their embeddings.
+ */
+export const embeddings = mysqlTable("embeddings", {
+  id: int("id").autoincrement().primaryKey(),
+  documentId: int("documentId").notNull(),
+  chunkIndex: int("chunkIndex").notNull(),
+  content: text("content").notNull(),
+  embedding: text("embedding").notNull(), // JSON array of floats
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type Embedding = typeof embeddings.$inferSelect;
+export type InsertEmbedding = typeof embeddings.$inferInsert;
+
+/**
+ * Agent-Collection relationship.
+ * Links agents to collections for RAG.
+ */
+export const agentCollections = mysqlTable("agent_collections", {
+  id: int("id").autoincrement().primaryKey(),
+  agentId: int("agentId").notNull(),
+  collectionId: int("collectionId").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type AgentCollection = typeof agentCollections.$inferSelect;
+export type InsertAgentCollection = typeof agentCollections.$inferInsert;

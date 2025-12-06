@@ -6,6 +6,9 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { invokeLLM } from "./_core/llm";
 import * as db from "./db";
+import * as rag from "./rag";
+import * as stt from "./stt";
+import { storagePut } from "./storage";
 
 // Admin-only procedure
 const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
@@ -160,6 +163,251 @@ export const appRouter = router({
         }
         const messages = await db.getMessagesByConversation(input.id);
         return { conversation, messages };
+      }),
+  }),
+
+  // Agents router
+  agents: router({
+    // List agents for current org
+    list: protectedProcedure
+      .input(z.object({ orgSlug: z.string() }))
+      .query(async ({ input }) => {
+        return db.getAgentsByOrg(input.orgSlug);
+      }),
+
+    // Get single agent
+    get: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input, ctx }) => {
+        const agent = await db.getAgentById(input.id);
+        if (!agent) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'Agent not found' });
+        }
+        return agent;
+      }),
+
+    // Create new agent
+    create: protectedProcedure
+      .input(z.object({
+        name: z.string(),
+        description: z.string().optional(),
+        systemPrompt: z.string(),
+        model: z.string().default("gpt-4o"),
+        temperature: z.number().min(0).max(10).default(7),
+        enableRAG: z.boolean().default(false),
+        enableSTT: z.boolean().default(false),
+        enableWebSearch: z.boolean().default(false),
+        orgSlug: z.string(),
+      }))
+      .mutation(async ({ input }) => {
+        const agentId = await db.createAgent({
+          ...input,
+          enableRAG: input.enableRAG ? 1 : 0,
+          enableSTT: input.enableSTT ? 1 : 0,
+          enableWebSearch: input.enableWebSearch ? 1 : 0,
+        });
+        return { id: agentId };
+      }),
+
+    // Update agent
+    update: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        name: z.string().optional(),
+        description: z.string().optional(),
+        systemPrompt: z.string().optional(),
+        model: z.string().optional(),
+        temperature: z.number().min(0).max(10).optional(),
+        enableRAG: z.boolean().optional(),
+        enableSTT: z.boolean().optional(),
+        enableWebSearch: z.boolean().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { id, ...updates } = input;
+        const dbUpdates: any = { ...updates };
+        if (updates.enableRAG !== undefined) dbUpdates.enableRAG = updates.enableRAG ? 1 : 0;
+        if (updates.enableSTT !== undefined) dbUpdates.enableSTT = updates.enableSTT ? 1 : 0;
+        if (updates.enableWebSearch !== undefined) dbUpdates.enableWebSearch = updates.enableWebSearch ? 1 : 0;
+        await db.updateAgent(id, dbUpdates);
+        return { success: true };
+      }),
+
+    // Delete agent
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        await db.deleteAgent(input.id);
+        return { success: true };
+      }),
+
+    // Link agent to collection
+    linkCollection: protectedProcedure
+      .input(z.object({ agentId: z.number(), collectionId: z.number() }))
+      .mutation(async ({ input }) => {
+        await db.linkAgentToCollection(input.agentId, input.collectionId);
+        return { success: true };
+      }),
+
+    // Unlink agent from collection
+    unlinkCollection: protectedProcedure
+      .input(z.object({ agentId: z.number(), collectionId: z.number() }))
+      .mutation(async ({ input }) => {
+        await db.unlinkAgentFromCollection(input.agentId, input.collectionId);
+        return { success: true };
+      }),
+
+    // Get agent's collections
+    getCollections: protectedProcedure
+      .input(z.object({ agentId: z.number() }))
+      .query(async ({ input }) => {
+        return db.getAgentCollections(input.agentId);
+      }),
+  }),
+
+  // Collections router
+  collections: router({
+    // List collections for current org
+    list: protectedProcedure
+      .input(z.object({ orgSlug: z.string() }))
+      .query(async ({ input }) => {
+        return db.getCollectionsByOrg(input.orgSlug);
+      }),
+
+    // Get single collection with documents
+    get: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        const collection = await db.getCollectionById(input.id);
+        if (!collection) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'Collection not found' });
+        }
+        const documents = await db.getDocumentsByCollection(input.id);
+        return { collection, documents };
+      }),
+
+    // Create new collection
+    create: protectedProcedure
+      .input(z.object({
+        name: z.string(),
+        description: z.string().optional(),
+        orgSlug: z.string(),
+      }))
+      .mutation(async ({ input }) => {
+        const collectionId = await db.createCollection(input);
+        return { id: collectionId };
+      }),
+
+    // Update collection
+    update: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        name: z.string().optional(),
+        description: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { id, ...updates } = input;
+        await db.updateCollection(id, updates);
+        return { success: true };
+      }),
+
+    // Delete collection
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        await db.deleteCollection(input.id);
+        return { success: true };
+      }),
+  }),
+
+  // Documents router
+  documents: router({
+    // List documents for current org
+    list: protectedProcedure
+      .input(z.object({ orgSlug: z.string() }))
+      .query(async ({ input }) => {
+        return db.getDocumentsByOrg(input.orgSlug);
+      }),
+
+    // Get single document
+    get: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        const document = await db.getDocumentById(input.id);
+        if (!document) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'Document not found' });
+        }
+        return document;
+      }),
+
+    // Upload and process document
+    upload: protectedProcedure
+      .input(z.object({
+        name: z.string(),
+        content: z.string(), // Base64 or text content
+        mimeType: z.string(),
+        collectionId: z.number().optional(),
+        orgSlug: z.string(),
+      }))
+      .mutation(async ({ input }) => {
+        // Upload to S3
+        const fileKey = `${input.orgSlug}/documents/${Date.now()}-${input.name}`;
+        const { url } = await storagePut(fileKey, Buffer.from(input.content, 'base64'), input.mimeType);
+
+        // Create document record
+        const documentId = await db.createDocument({
+          name: input.name,
+          mimeType: input.mimeType,
+          contentUrl: url,
+          collectionId: input.collectionId,
+          orgSlug: input.orgSlug,
+          status: "processing",
+        });
+
+        // Process document asynchronously (in background)
+        // For now, we'll process it synchronously
+        try {
+          await rag.processDocument(documentId, input.content);
+          await db.updateDocument(documentId, { status: "completed" });
+        } catch (error) {
+          await db.updateDocument(documentId, { status: "failed" });
+          throw error;
+        }
+
+        return { id: documentId };
+      }),
+
+    // Delete document
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        await db.deleteDocument(input.id);
+        return { success: true };
+      }),
+
+    // Search documents using RAG
+    search: protectedProcedure
+      .input(z.object({
+        query: z.string(),
+        collectionIds: z.array(z.number()),
+        topK: z.number().default(5),
+      }))
+      .query(async ({ input }) => {
+        return rag.searchRelevantChunks(input.query, input.collectionIds, input.topK);
+      }),
+  }),
+
+  // STT (Speech-to-Text) router
+  stt: router({
+    // Transcribe audio to text
+    transcribe: protectedProcedure
+      .input(z.object({
+        audioData: z.string(), // Base64 encoded audio
+        mimeType: z.string(),
+        language: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const text = await stt.transcribeAudioData(input.audioData, input.mimeType, input.language);
+        return { text };
       }),
   }),
 });

@@ -66,3 +66,27 @@
 - [x] Add analytics charts (users over time, conversations, messages)
 - [x] Add admin route protection (only admin role can access)
 - [x] Test admin console functionality
+
+## Phase 9: V4.5 Integration - Agents, RAG, Voice
+- [ ] Fix admin console database query error
+- [ ] Read and analyze v4.5 blueprint
+- [ ] Create agents table (id, name, systemPrompt, model, temperature, tools, orgSlug)
+- [ ] Create documents table (id, name, content, orgSlug, collectionId)
+- [ ] Create collections table (id, name, orgSlug)
+- [ ] Create embeddings table (id, documentId, chunkIndex, embedding, content)
+- [ ] Create agent_conversations table (agentId, conversationId)
+- [ ] Implement agent CRUD procedures
+- [ ] Implement document upload and ingest pipeline
+- [ ] Implement collection management procedures
+- [ ] Implement vector search for RAG
+- [ ] Implement STT endpoint with Whisper
+- [ ] Add Agents tab to admin console
+- [ ] Add Documents tab to admin console
+- [ ] Add Collections tab to admin console
+- [ ] Add agent selector to chat UI
+- [ ] Add microphone button to chat UI
+- [ ] Add RAG sources display to chat UI
+- [ ] Write integration tests (AT-07)
+- [ ] Test agent creation and configuration
+- [ ] Test document upload and RAG
+- [ ] Test voice-to-text in chat

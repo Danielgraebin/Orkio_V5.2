@@ -1,11 +1,18 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { trpc } from "@/lib/trpc";
-import { Loader2, MessageSquare, Plus, Send, Trash2 } from "lucide-react";
+import { Loader2, MessageSquare, Mic, MicOff, Plus, Send, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useLocation, useRoute } from "wouter";
 import { Streamdown } from "streamdown";
@@ -20,6 +27,9 @@ export default function Chat() {
   const conversationId = params?.conversationId ? parseInt(params.conversationId) : null;
 
   const [message, setMessage] = useState("");
+  const [selectedAgentId, setSelectedAgentId] = useState<number | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
   const [localMessages, setLocalMessages] = useState<Array<{ role: string; content: string }>>([]);
 
   // Fetch conversations list
@@ -27,6 +37,8 @@ export default function Chat() {
     { orgSlug },
     { enabled: !!user }
   );
+
+  const { data: agents } = trpc.agents.list.useQuery({ orgSlug }, { enabled: !!user });
 
   // Fetch current conversation
   const { data: conversationData, refetch: refetchConversation } = trpc.conversations.get.useQuery(
@@ -52,6 +64,17 @@ export default function Chat() {
     },
   });
 
+  // Transcribe audio mutation
+  const transcribeAudio = trpc.stt.transcribe.useMutation({
+    onSuccess: (data) => {
+      setMessage(data.text);
+      toast.success("Audio transcribed successfully");
+    },
+    onError: (error) => {
+      toast.error(`Transcription failed: ${error.message}`);
+    },
+  });
+
   // Send message mutation
   const sendMessage = trpc.chat.stream.useMutation({
     onSuccess: (data) => {
@@ -71,6 +94,43 @@ export default function Chat() {
       setLocalMessages([]);
     }
   }, [conversationData]);
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      const chunks: Blob[] = [];
+
+      recorder.ondataavailable = (e) => chunks.push(e.data);
+      recorder.onstop = async () => {
+        const blob = new Blob(chunks, { type: "audio/webm" });
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const base64 = (reader.result as string).split(",")[1];
+          transcribeAudio.mutate({
+            audioData: base64,
+            mimeType: "audio/webm",
+          });
+        };
+        reader.readAsDataURL(blob);
+        stream.getTracks().forEach((track) => track.stop());
+      };
+
+      recorder.start();
+      setMediaRecorder(recorder);
+      setIsRecording(true);
+    } catch (error) {
+      toast.error("Failed to start recording. Please check microphone permissions.");
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorder && isRecording) {
+      mediaRecorder.stop();
+      setIsRecording(false);
+      setMediaRecorder(null);
+    }
+  };
 
   const handleSendMessage = async () => {
     if (!message.trim() || !conversationId) return;
@@ -205,7 +265,27 @@ export default function Chat() {
 
             {/* Message Input */}
             <div className="p-4 border-t border-border bg-card">
-              <div className="max-w-3xl mx-auto flex gap-2">
+              <div className="max-w-3xl mx-auto space-y-2">
+                {/* Agent Selection */}
+                {agents && agents.length > 0 && (
+                  <Select
+                    value={selectedAgentId?.toString() || ""}
+                    onValueChange={(value) => setSelectedAgentId(value ? parseInt(value) : null)}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select an agent (optional)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">Default Assistant</SelectItem>
+                      {agents.map((agent) => (
+                        <SelectItem key={agent.id} value={agent.id.toString()}>
+                          {agent.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+                <div className="flex gap-2">
                 <Input
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
@@ -214,9 +294,18 @@ export default function Chat() {
                   disabled={sendMessage.isPending}
                   className="flex-1"
                 />
-                <Button onClick={handleSendMessage} disabled={!message.trim() || sendMessage.isPending}>
-                  <Send className="w-4 h-4" />
-                </Button>
+                  <Button
+                    variant={isRecording ? "destructive" : "outline"}
+                    size="icon"
+                    onClick={isRecording ? stopRecording : startRecording}
+                    disabled={transcribeAudio.isPending}
+                  >
+                    {isRecording ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+                  </Button>
+                  <Button onClick={handleSendMessage} disabled={!message.trim() || sendMessage.isPending}>
+                    <Send className="w-4 h-4" />
+                  </Button>
+                </div>
               </div>
             </div>
           </>

@@ -15,6 +15,13 @@
       "when": 1765037754319,
       "tag": "0001_sad_purifiers",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1765061602268,
+      "tag": "0002_damp_nekra",
+      "breakpoints": true
     }
   ]
 }
