@@ -269,14 +269,20 @@ export default function Chat() {
                 {/* Agent Selection */}
                 {agents && agents.length > 0 && (
                   <Select
-                    value={selectedAgentId?.toString() ?? "none"}
-                    onValueChange={(value) => setSelectedAgentId(value === "none" ? null : parseInt(value))}
+                    value={selectedAgentId != null ? selectedAgentId.toString() : "default"}
+                    onValueChange={(value) => {
+                      if (!value || value === "default") {
+                        setSelectedAgentId(null);
+                        return;
+                      }
+                      setSelectedAgentId(parseInt(value, 10));
+                    }}
                   >
                     <SelectTrigger className="w-full">
                       <SelectValue placeholder="Select an agent (optional)" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="none">Default Assistant</SelectItem>
+                      <SelectItem value="default">Default Assistant</SelectItem>
                       {agents.map((agent) => (
                         <SelectItem key={agent.id} value={agent.id.toString()}>
                           {agent.name}

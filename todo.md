@@ -110,3 +110,15 @@
 - [x] Test agent selection in dev environment
 - [ ] Publish fix to production
 - [ ] Validate in production (AT-08): open chat, select agent, send message
+
+## PATCH 008.C: Definitive Select Fix (Use 'default' sentinel)
+- [x] Replace 'none' with 'default' sentinel in Chat.tsx Select component
+- [x] Update onValueChange logic to handle 'default' → null
+- [x] Add value prop to Select: `value={selectedAgentId != null ? selectedAgentId.toString() : "default"}`
+- [x] Verify no `<SelectItem value="">` exists
+- [x] Test: Create conversation without agent (should work)
+- [x] Test: Create conversation with agent selected (should work)
+- [x] Test: Switch from agent to "Default Assistant" (should work)
+- [ ] Save checkpoint
+- [ ] Deploy to production
+- [ ] Validate in production: /chat/default/... works without error
