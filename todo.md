@@ -122,3 +122,17 @@
 - [ ] Save checkpoint
 - [ ] Deploy to production
 - [ ] Validate in production: /chat/default/... works without error
+
+## PATCH 008.D: Hardening Select Component (Final Fix)
+- [x] Extract selectValue as constant in Chat.tsx
+- [x] Add `.filter((agent) => agent.id != null)` before mapping agents
+- [x] Improve parsing with `Number.isNaN` check in onValueChange
+- [x] Run global grep to find any `SelectItem value=""`
+- [x] Fix any remaining empty values found (NONE FOUND)
+- [x] Test: /admin → Agents → Create agent
+- [x] Test: /chat → Start conversation without agent
+- [x] Test: /chat → Start conversation with agent selected
+- [x] Test: /chat → Switch between agents
+- [ ] Save checkpoint
+- [ ] Deploy to production
+- [ ] Validate in production: /chat/default/... works in all 3 scenarios

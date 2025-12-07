@@ -267,30 +267,36 @@ export default function Chat() {
             <div className="p-4 border-t border-border bg-card">
               <div className="max-w-3xl mx-auto space-y-2">
                 {/* Agent Selection */}
-                {agents && agents.length > 0 && (
-                  <Select
-                    value={selectedAgentId != null ? selectedAgentId.toString() : "default"}
-                    onValueChange={(value) => {
-                      if (!value || value === "default") {
-                        setSelectedAgentId(null);
-                        return;
-                      }
-                      setSelectedAgentId(parseInt(value, 10));
-                    }}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select an agent (optional)" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="default">Default Assistant</SelectItem>
-                      {agents.map((agent) => (
-                        <SelectItem key={agent.id} value={agent.id.toString()}>
-                          {agent.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
+                {agents && agents.length > 0 && (() => {
+                  const selectValue = selectedAgentId != null ? selectedAgentId.toString() : "default";
+                  return (
+                    <Select
+                      value={selectValue}
+                      onValueChange={(value) => {
+                        if (value === "default") {
+                          setSelectedAgentId(null);
+                        } else {
+                          const parsed = Number(value);
+                          setSelectedAgentId(Number.isNaN(parsed) ? null : parsed);
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select an agent (optional)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="default">Default Assistant</SelectItem>
+                        {agents
+                          .filter((agent) => agent.id != null)
+                          .map((agent) => (
+                            <SelectItem key={agent.id} value={agent.id!.toString()}>
+                              {agent.name}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                  );
+                })()}
                 <div className="flex gap-2">
                 <Input
                   value={message}
