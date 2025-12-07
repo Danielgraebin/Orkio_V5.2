@@ -90,3 +90,13 @@
 - [ ] Test agent creation and configuration
 - [ ] Test document upload and RAG
 - [ ] Test voice-to-text in chat
+
+## Bug Fix: NotFoundError in Production Admin Console
+- [x] Investigate NotFoundError when clicking "Create Agent" in production
+- [x] Analyze AgentsManager Dialog/Portal implementation
+- [x] Fix hydration issues or Portal conflicts
+- [x] Stabilize React keys in agent list
+- [x] Test agent creation flow in dev environment
+- [x] Add integration test for admin agent creation
+- [ ] Publish fix to production
+- [ ] Validate fix in production (orkioplatform-jbcwtaex.manus.space/admin)

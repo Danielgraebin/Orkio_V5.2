@@ -95,7 +95,7 @@ export default function DocumentsManager({ orgSlug }: DocumentsManagerProps) {
             {documents?.length || 0} document(s) uploaded
           </p>
         </div>
-        <Dialog open={isUploadOpen} onOpenChange={setIsUploadOpen}>
+        <Dialog open={isUploadOpen} onOpenChange={setIsUploadOpen} modal={true}>
           <DialogTrigger asChild>
             <Button>
               <Upload className="w-4 h-4 mr-2" />

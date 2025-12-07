@@ -73,7 +73,7 @@ export default function CollectionsManager({ orgSlug }: CollectionsManagerProps)
             {collections?.length || 0} collection(s) configured
           </p>
         </div>
-        <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+        <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen} modal={true}>
           <DialogTrigger asChild>
             <Button>
               <Plus className="w-4 h-4 mr-2" />

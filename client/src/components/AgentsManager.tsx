@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Dialog,
   DialogContent,
@@ -89,21 +90,22 @@ export default function AgentsManager({ orgSlug }: AgentsManagerProps) {
             {agents?.length || 0} agent(s) configured
           </p>
         </div>
-        <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+        <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen} modal={true}>
           <DialogTrigger asChild>
             <Button>
               <Plus className="w-4 h-4 mr-2" />
               Create Agent
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogContent className="max-w-2xl">
             <DialogHeader>
               <DialogTitle>Create New Agent</DialogTitle>
               <DialogDescription>
                 Configure a new AI agent with custom prompts and tools
               </DialogDescription>
             </DialogHeader>
-            <div className="space-y-4 py-4">
+            <ScrollArea className="max-h-[60vh] pr-4">
+              <div className="space-y-4 py-4">
               <div className="space-y-2">
                 <Label htmlFor="name">Name</Label>
                 <Input
@@ -187,7 +189,8 @@ export default function AgentsManager({ orgSlug }: AgentsManagerProps) {
                   />
                 </div>
               </div>
-            </div>
+              </div>
+            </ScrollArea>
             <DialogFooter>
               <Button variant="outline" onClick={() => setIsCreateOpen(false)}>
                 Cancel
