@@ -100,3 +100,13 @@
 - [x] Add integration test for admin agent creation
 - [ ] Publish fix to production
 - [ ] Validate fix in production (orkioplatform-jbcwtaex.manus.space/admin)
+
+## PATCH 008.A: Fix Select Component in Chat (Agent Dropdown)
+- [x] Locate Select component for agent selection in Chat.tsx
+- [x] Remove any `<SelectItem value="">` instances
+- [x] Replace with sentinel value "none" for "No agent" option
+- [x] Use `value={value ?? "none"}` in Select component
+- [x] Add proper placeholder via SelectValue
+- [x] Test agent selection in dev environment
+- [ ] Publish fix to production
+- [ ] Validate in production (AT-08): open chat, select agent, send message
