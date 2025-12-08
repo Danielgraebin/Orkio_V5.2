@@ -271,3 +271,56 @@ NOTA: Funcionalidade adiada. Usuários devem usar Admin Console para upload.
 - [x] Retornar erro claro: "Maximum 20 files per collection..."
 - [ ] Tratar erro no frontend com mensagem amigável (toast)
 - [ ] Documentar como aumentar limite via env/config
+
+## 🧪 TESTES DE ACEITAÇÃO RAG (Produção)
+
+### AT-RAG-01: Upload de Documento (Happy Path)
+- [ ] Acessar /admin → Documents
+- [ ] Upload arquivo teste-rag.txt: "O nome do CEO da Patroai é Daniel Graebin."
+- [ ] Selecionar Collection existente
+- [ ] Verificar documento aparece com nome correto
+- [ ] Verificar Type: text/plain
+- [ ] Verificar Status: processing → completed
+- [ ] Verificar sem erros no console dev
+- [ ] Verificar sem erro tRPC/JSON
+
+### AT-RAG-02: Upload com Falha Controlada
+- [ ] Acessar /admin → Documents
+- [ ] Upload arquivo corrompido/binário renomeado
+- [ ] Selecionar Collection válida
+- [ ] Verificar documento aparece com status: failed
+- [ ] Verificar mensagem de erro amigável
+- [ ] Verificar SEM erro 500
+- [ ] Verificar SEM "Unexpected token '<', '<!doctype'"
+- [ ] Verificar SEM página branca de erro
+- [ ] Verificar app continua utilizável (pode subir outro arquivo)
+
+### AT-RAG-03: Agent + RAG Respondendo com Conteúdo
+**Preparação:**
+- [ ] Criar Collection: "Base Patroai"
+- [ ] Upload patroai-base.txt: "A Patroai é uma holding de tecnologia liderada por Daniel Graebin."
+- [ ] Verificar status: completed
+- [ ] Criar Agent: "Agente Patroai RAG"
+  - [ ] Model: gpt-4o
+  - [ ] Tools: RAG = ON
+  - [ ] Collections: Base Patroai
+
+**Teste:**
+- [ ] Acessar / → Start Chatting
+- [ ] Criar nova conversa
+- [ ] Selecionar "Agente Patroai RAG"
+- [ ] Perguntar: "Quem lidera a Patroai?"
+- [ ] Verificar resposta menciona "Daniel Graebin"
+- [ ] Verificar resposta não inventa outra pessoa
+- [ ] Verificar sem erros de UI
+- [ ] Verificar logs: "[RAG] found N chunks for agent..."
+
+### AT-RAG-04: Limite de 20 Documentos
+- [ ] Criar Collection: "Limite-20-Test"
+- [ ] Upload 20 arquivos pequenos (TXT)
+- [ ] Verificar todos aceitos (processing/completed)
+- [ ] Tentar upload do 21º arquivo
+- [ ] Verificar API recusa com mensagem clara
+- [ ] Verificar mensagem: "Limite de 20 documentos por collection atingido"
+- [ ] Verificar SEM HTML, SEM Unexpected token, SEM crash
+- [ ] Verificar lista mostra 20 docs corretamente
