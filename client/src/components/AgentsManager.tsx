@@ -42,9 +42,12 @@ export default function AgentsManager({ orgSlug }: AgentsManagerProps) {
     enableRAG: false,
     enableSTT: false,
     enableWebSearch: false,
+    collectionIds: [] as number[],
+    linkedAgentIds: [] as number[],
   });
 
   const { data: agents, isLoading, refetch } = trpc.agents.list.useQuery({ orgSlug });
+  const { data: collections } = trpc.collections.list.useQuery({ orgSlug });
 
   const createAgent = trpc.agents.create.useMutation({
     onSuccess: () => {
@@ -59,6 +62,8 @@ export default function AgentsManager({ orgSlug }: AgentsManagerProps) {
         enableRAG: false,
         enableSTT: false,
         enableWebSearch: false,
+        collectionIds: [],
+        linkedAgentIds: [],
       });
       toast.success("Agent created successfully");
     },
@@ -99,6 +104,8 @@ export default function AgentsManager({ orgSlug }: AgentsManagerProps) {
       enableRAG: agent.tools?.includes("RAG") || false,
       enableSTT: agent.tools?.includes("STT") || false,
       enableWebSearch: agent.tools?.includes("WebSearch") || false,
+      collectionIds: agent.collectionIds || [],
+      linkedAgentIds: agent.linkedAgentIds || [],
     });
   };
 
@@ -222,6 +229,46 @@ export default function AgentsManager({ orgSlug }: AgentsManagerProps) {
                   />
                 </div>
               </div>
+              {newAgent.enableRAG && (
+                <div>
+                  <Label>RAG Collections</Label>
+                  <p className="text-sm text-muted-foreground mb-2">
+                    Select collections to use as knowledge base for this agent
+                  </p>
+                  <div className="space-y-2 max-h-32 overflow-y-auto border rounded-md p-2">
+                    {collections && collections.length > 0 ? (
+                      collections.map((collection) => (
+                        <div key={collection.id} className="flex items-center space-x-2">
+                          <input
+                            type="checkbox"
+                            id={`collection-${collection.id}`}
+                            checked={newAgent.collectionIds.includes(collection.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setNewAgent({
+                                  ...newAgent,
+                                  collectionIds: [...newAgent.collectionIds, collection.id],
+                                });
+                              } else {
+                                setNewAgent({
+                                  ...newAgent,
+                                  collectionIds: newAgent.collectionIds.filter((id) => id !== collection.id),
+                                });
+                              }
+                            }}
+                            className="rounded border-gray-300"
+                          />
+                          <label htmlFor={`collection-${collection.id}`} className="text-sm cursor-pointer">
+                            {collection.name}
+                          </label>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-sm text-muted-foreground">No collections available</p>
+                    )}
+                  </div>
+                </div>
+              )}
               </div>
             </ScrollArea>
             <DialogFooter>
@@ -408,6 +455,86 @@ export default function AgentsManager({ orgSlug }: AgentsManagerProps) {
                     />
                   </div>
                 </div>
+              {editingAgent.enableRAG && (
+                <div>
+                  <Label>RAG Collections</Label>
+                  <p className="text-sm text-muted-foreground mb-2">
+                    Select collections to use as knowledge base for this agent
+                  </p>
+                  <div className="space-y-2 max-h-32 overflow-y-auto border rounded-md p-2">
+                    {collections && collections.length > 0 ? (
+                      collections.map((collection) => (
+                        <div key={collection.id} className="flex items-center space-x-2">
+                          <input
+                            type="checkbox"
+                            id={`edit-collection-${collection.id}`}
+                            checked={editingAgent.collectionIds.includes(collection.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setEditingAgent({
+                                  ...editingAgent,
+                                  collectionIds: [...editingAgent.collectionIds, collection.id],
+                                });
+                              } else {
+                                setEditingAgent({
+                                  ...editingAgent,
+                                  collectionIds: editingAgent.collectionIds.filter((id: number) => id !== collection.id),
+                                });
+                              }
+                            }}
+                            className="rounded border-gray-300"
+                          />
+                          <label htmlFor={`edit-collection-${collection.id}`} className="text-sm cursor-pointer">
+                            {collection.name}
+                          </label>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-sm text-muted-foreground">No collections available</p>
+                    )}
+                  </div>
+                </div>
+              )}
+              <div>
+                <Label>Linked Agents (HAG)</Label>
+                <p className="text-sm text-muted-foreground mb-2">
+                  Select agents that this agent can call for multi-agent orchestration
+                </p>
+                <div className="space-y-2 max-h-32 overflow-y-auto border rounded-md p-2">
+                  {agents && agents.length > 1 ? (
+                    agents
+                      .filter((a) => a.id !== editingAgent.id)
+                      .map((agent) => (
+                        <div key={agent.id} className="flex items-center space-x-2">
+                          <input
+                            type="checkbox"
+                            id={`edit-linked-${agent.id}`}
+                            checked={editingAgent.linkedAgentIds.includes(agent.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setEditingAgent({
+                                  ...editingAgent,
+                                  linkedAgentIds: [...editingAgent.linkedAgentIds, agent.id],
+                                });
+                              } else {
+                                setEditingAgent({
+                                  ...editingAgent,
+                                  linkedAgentIds: editingAgent.linkedAgentIds.filter((id: number) => id !== agent.id),
+                                });
+                              }
+                            }}
+                            className="rounded border-gray-300"
+                          />
+                          <label htmlFor={`edit-linked-${agent.id}`} className="text-sm cursor-pointer">
+                            {agent.name}
+                          </label>
+                        </div>
+                      ))
+                  ) : (
+                    <p className="text-sm text-muted-foreground">No other agents available</p>
+                  )}
+                </div>
+              </div>
               </div>
               </div>
             </ScrollArea>

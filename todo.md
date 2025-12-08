@@ -155,3 +155,48 @@
 - [ ] Save checkpoint
 - [ ] Deploy to production
 - [ ] Validate all scenarios in production
+
+## PATCH 011.A: Upload de Documentos + Pipeline RAG
+- [x] Diagnosticar estado atual do pipeline de upload/processamento
+- [x] Verificar schema das tabelas: collections, documents, embeddings
+- [x] Corrigir endpoint documents.upload para:
+  - [x] Salvar arquivo no storage (S3)
+  - [x] Extrair texto (suporte PDF, DOCX, TXT)
+  - [x] Fazer chunking (500 chars com overlap)
+  - [x] Gerar embeddings usando OpenAI
+  - [x] Salvar embeddings na tabela
+  - [x] Atualizar status: pending → processing → completed/failed
+  - [x] Em caso de erro: marcar status=failed e logar motivo
+- [ ] Testar upload de documento no Admin
+- [ ] Verificar que status chega em "completed"
+- [ ] Verificar embeddings salvos no banco
+
+## PATCH 011.B: Agent + RAG no Chat
+- [x] Verificar/criar tabela agent_collections (agentId, collectionId) - já existia
+- [x] Adicionar multi-select de Collections no AgentsManager (create/edit)
+- [x] Implementar linkagem agent ↔ collections no backend
+- [x] No chat backend, quando agent tem RAG ON:
+  - [x] Gerar embedding da pergunta do usuário
+  - [x] Buscar chunks relevantes via cosine similarity
+  - [x] Montar contexto RAG com chunks + metadados
+  - [x] Incluir contexto no system prompt antes do LLM
+- [x] Garantir que chat funciona normalmente se RAG OFF ou sem coleções
+- [ ] Testar: criar agent com RAG, vincular coleção, perguntar sobre documento
+
+## PATCH 012.A: Ligação entre Agentes (HAG / Multi-Agent)
+- [x] Criar tabela agent_links (parentAgentId, childAgentId)
+- [x] Adicionar multi-select "Linked Agents" no AgentsManager (edit)
+- [x] Implementar procedures para link/unlink agents
+- [x] No chat backend, quando agent tem linked agents:
+  - [x] Detectar quando deve chamar agent filho
+  - [x] Implementar forward simples (MVP: chamar primeiro linked agent)
+  - [x] Retornar resposta do agent filho
+- [ ] Testar: criar agent A ligado a agent B, chat com A deve chamar B
+- [x] Documentar fluxo de orquestração implementado
+
+## Critérios de Aceite (Produção)
+- [ ] Upload documento → status vai para "ready"
+- [ ] Criar coleção → vincular documentos
+- [ ] Criar/editar agent → ativar RAG → vincular coleções
+- [ ] Chat com agent RAG → respostas usando conteúdo dos documentos
+- [ ] Criar agent A ligado a agent B → chat com A chama B

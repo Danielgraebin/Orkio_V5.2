@@ -5,17 +5,54 @@
 
 import { invokeLLM } from "./_core/llm";
 import * as db from "./db";
+import { ENV } from "./_core/env";
+import * as pdfParse from "pdf-parse";
+import mammoth from "mammoth";
+
+/**
+ * Extract text from different file formats
+ */
+export async function extractText(content: string, mimeType: string): Promise<string> {
+  try {
+    // Handle plain text
+    if (mimeType === "text/plain" || mimeType === "text/markdown") {
+      return Buffer.from(content, 'base64').toString('utf-8');
+    }
+
+    // Handle PDF
+    if (mimeType === "application/pdf") {
+      const buffer = Buffer.from(content, 'base64');
+      const data = await (pdfParse as any).default(buffer);
+      return data.text;
+    }
+
+    // Handle DOCX
+    if (mimeType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") {
+      const buffer = Buffer.from(content, 'base64');
+      const result = await mammoth.extractRawText({ buffer });
+      return result.value;
+    }
+
+    // Fallback: try to decode as text
+    return Buffer.from(content, 'base64').toString('utf-8');
+  } catch (error) {
+    throw new Error(`Failed to extract text from ${mimeType}: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
 
 /**
  * Chunk text into smaller pieces for embedding
  */
-export function chunkText(text: string, chunkSize: number = 1000, overlap: number = 200): string[] {
+export function chunkText(text: string, chunkSize: number = 500, overlap: number = 100): string[] {
   const chunks: string[] = [];
   let start = 0;
 
   while (start < text.length) {
     const end = Math.min(start + chunkSize, text.length);
-    chunks.push(text.slice(start, end));
+    const chunk = text.slice(start, end).trim();
+    if (chunk.length > 0) {
+      chunks.push(chunk);
+    }
     start = end - overlap;
     if (start >= text.length) break;
   }
@@ -24,24 +61,33 @@ export function chunkText(text: string, chunkSize: number = 1000, overlap: numbe
 }
 
 /**
- * Generate embeddings for text using LLM
+ * Generate embeddings for text using OpenAI Embeddings API
  * Returns a vector (array of numbers)
  */
 export async function generateEmbedding(text: string): Promise<number[]> {
-  // Use LLM to generate embeddings
-  // For now, we'll use a simple hash-based approach
-  // In production, you'd use OpenAI embeddings API or similar
-  
-  // Placeholder: generate a simple embedding vector
-  // This should be replaced with actual embedding API call
-  const embedding = new Array(384).fill(0).map((_, i) => {
-    const hash = text.split('').reduce((acc, char) => {
-      return ((acc << 5) - acc) + char.charCodeAt(0);
-    }, i);
-    return Math.sin(hash) * 0.5 + 0.5;
-  });
+  try {
+    const response = await fetch("https://api.openai.com/v1/embeddings", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${ENV.forgeApiKey}`,
+      },
+      body: JSON.stringify({
+        model: "text-embedding-3-small",
+        input: text,
+      }),
+    });
 
-  return embedding;
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`OpenAI Embeddings API error: ${response.status} ${error}`);
+    }
+
+    const data = await response.json();
+    return data.data[0].embedding;
+  } catch (error) {
+    throw new Error(`Failed to generate embedding: ${error instanceof Error ? error.message : String(error)}`);
+  }
 }
 
 /**
@@ -69,24 +115,39 @@ export function cosineSimilarity(a: number[], b: number[]): number {
 }
 
 /**
- * Process document: chunk and embed
+ * Process document: extract text, chunk, and embed
  */
-export async function processDocument(documentId: number, content: string): Promise<void> {
-  // Chunk the document
-  const chunks = chunkText(content);
+export async function processDocument(documentId: number, content: string, mimeType: string): Promise<void> {
+  try {
+    // Extract text from document
+    const text = await extractText(content, mimeType);
 
-  // Generate embeddings for each chunk
-  for (let i = 0; i < chunks.length; i++) {
-    const chunk = chunks[i];
-    const embedding = await generateEmbedding(chunk);
+    if (!text || text.trim().length === 0) {
+      throw new Error("No text extracted from document");
+    }
 
-    // Store embedding
-    await db.createEmbedding({
-      documentId,
-      chunkIndex: i,
-      content: chunk,
-      embedding: JSON.stringify(embedding),
-    });
+    // Chunk the document
+    const chunks = chunkText(text);
+
+    if (chunks.length === 0) {
+      throw new Error("No chunks generated from document");
+    }
+
+    // Generate embeddings for each chunk
+    for (let i = 0; i < chunks.length; i++) {
+      const chunk = chunks[i];
+      const embedding = await generateEmbedding(chunk);
+
+      // Store embedding
+      await db.createEmbedding({
+        documentId,
+        chunkIndex: i,
+        content: chunk,
+        embedding: JSON.stringify(embedding),
+      });
+    }
+  } catch (error) {
+    throw new Error(`Document processing failed: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
@@ -135,7 +196,7 @@ export function buildRAGContext(chunks: Array<{ content: string; score: number }
   if (chunks.length === 0) return "";
 
   const context = chunks
-    .map((chunk, i) => `[Document ${i + 1}]\n${chunk.content}`)
+    .map((chunk, i) => `[Document ${i + 1}] (relevance: ${(chunk.score * 100).toFixed(1)}%)\n${chunk.content}`)
     .join("\n\n");
 
   return `Here are relevant documents that may help answer the question:\n\n${context}\n\nPlease use the above documents to inform your response.`;

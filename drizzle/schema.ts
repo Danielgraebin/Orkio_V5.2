@@ -143,3 +143,17 @@ export const agentCollections = mysqlTable("agent_collections", {
 
 export type AgentCollection = typeof agentCollections.$inferSelect;
 export type InsertAgentCollection = typeof agentCollections.$inferInsert;
+
+/**
+ * Agent-Agent relationship (HAG - Hierarchical Agent Graph).
+ * Links parent agents to child agents for multi-agent orchestration.
+ */
+export const agentLinks = mysqlTable("agent_links", {
+  id: int("id").autoincrement().primaryKey(),
+  parentAgentId: int("parentAgentId").notNull(),
+  childAgentId: int("childAgentId").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type AgentLink = typeof agentLinks.$inferSelect;
+export type InsertAgentLink = typeof agentLinks.$inferInsert;

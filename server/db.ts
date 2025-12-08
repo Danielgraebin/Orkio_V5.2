@@ -3,7 +3,8 @@ import { drizzle } from "drizzle-orm/mysql2";
 import { 
   InsertUser, users, conversations, InsertConversation, messages, InsertMessage,
   agents, InsertAgent, collections, InsertCollection, documents, InsertDocument,
-  embeddings, InsertEmbedding, agentCollections, InsertAgentCollection
+  embeddings, InsertEmbedding, agentCollections, InsertAgentCollection,
+  agentLinks, InsertAgentLink
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
@@ -249,6 +250,14 @@ export async function unlinkAgentFromCollection(agentId: number, collectionId: n
     .where(and(eq(agentCollections.agentId, agentId), eq(agentCollections.collectionId, collectionId)));
 }
 
+export async function unlinkAllAgentCollections(agentId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.delete(agentCollections)
+    .where(eq(agentCollections.agentId, agentId));
+}
+
 export async function getAgentCollections(agentId: number) {
   const db = await getDb();
   if (!db) return [];
@@ -256,6 +265,42 @@ export async function getAgentCollections(agentId: number) {
   const result = await db.select()
     .from(agentCollections)
     .where(eq(agentCollections.agentId, agentId));
+  
+  return result;
+}
+
+// ==================== AGENT LINKS (HAG) ====================
+
+export async function linkAgents(parentAgentId: number, childAgentId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.insert(agentLinks).values({ parentAgentId, childAgentId });
+}
+
+export async function unlinkAgents(parentAgentId: number, childAgentId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.delete(agentLinks)
+    .where(and(eq(agentLinks.parentAgentId, parentAgentId), eq(agentLinks.childAgentId, childAgentId)));
+}
+
+export async function unlinkAllChildAgents(parentAgentId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.delete(agentLinks)
+    .where(eq(agentLinks.parentAgentId, parentAgentId));
+}
+
+export async function getLinkedAgents(parentAgentId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const result = await db.select()
+    .from(agentLinks)
+    .where(eq(agentLinks.parentAgentId, parentAgentId));
   
   return result;
 }

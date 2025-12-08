@@ -62,6 +62,71 @@ export const appRouter = router({
           content: m.content,
         }));
 
+        // Check if conversation has an agent with RAG enabled
+        let ragContext = "";
+        if (conversation.agentId) {
+          const agent = await db.getAgentById(conversation.agentId);
+          if (agent && agent.enableRAG === 1) {
+            // Get agent's collections
+            const agentCollections = await db.getAgentCollections(agent.id);
+            const collectionIds = agentCollections.map(c => c.collectionId);
+            
+            if (collectionIds.length > 0) {
+              // Search for relevant chunks
+              const relevantChunks = await rag.searchRelevantChunks(input.message, collectionIds, 5);
+              if (relevantChunks.length > 0) {
+                ragContext = rag.buildRAGContext(relevantChunks);
+              }
+            }
+          }
+
+          // Check if agent has linked agents (HAG)
+          if (agent) {
+          const linkedAgents = await db.getLinkedAgents(agent.id);
+          if (linkedAgents.length > 0) {
+            // Simple HAG implementation: forward to first linked agent
+            const childAgentId = linkedAgents[0].childAgentId;
+            const childAgent = await db.getAgentById(childAgentId);
+            
+            if (childAgent) {
+              // Build child agent context
+              let childSystemContent = childAgent.systemPrompt || "You are a helpful assistant.";
+              
+              // If child agent has RAG, apply it
+              if (childAgent.enableRAG === 1) {
+                const childCollections = await db.getAgentCollections(childAgent.id);
+                const childCollectionIds = childCollections.map(c => c.collectionId);
+                if (childCollectionIds.length > 0) {
+                  const childRelevantChunks = await rag.searchRelevantChunks(input.message, childCollectionIds, 5);
+                  if (childRelevantChunks.length > 0) {
+                    const childRagContext = rag.buildRAGContext(childRelevantChunks);
+                    childSystemContent = `${childSystemContent}\n\n${childRagContext}`;
+                  }
+                }
+              }
+              
+              // Prepend child agent system prompt
+              messages.unshift({
+                role: "system",
+                content: `[Delegated to agent: ${childAgent.name}]\n\n${childSystemContent}`,
+              });
+            }
+          } else {
+            // No linked agents, use parent agent's system prompt
+            if (agent && agent.systemPrompt) {
+              let systemContent = agent.systemPrompt;
+              if (ragContext) {
+                systemContent = `${agent.systemPrompt}\n\n${ragContext}`;
+              }
+              messages.unshift({
+                role: "system",
+                content: systemContent,
+              });
+            }
+          }
+          }
+        }
+
         // Call LLM
         const response = await invokeLLM({ messages });
         const content = response.choices[0]?.message?.content;
@@ -172,7 +237,20 @@ export const appRouter = router({
     list: protectedProcedure
       .input(z.object({ orgSlug: z.string() }))
       .query(async ({ input }) => {
-        return db.getAgentsByOrg(input.orgSlug);
+        const agents = await db.getAgentsByOrg(input.orgSlug);
+        // Add collectionIds and linkedAgentIds to each agent
+        const agentsWithRelations = await Promise.all(
+          agents.map(async (agent) => {
+            const collections = await db.getAgentCollections(agent.id);
+            const linkedAgents = await db.getLinkedAgents(agent.id);
+            return {
+              ...agent,
+              collectionIds: collections.map((c) => c.collectionId),
+              linkedAgentIds: linkedAgents.map((l) => l.childAgentId),
+            };
+          })
+        );
+        return agentsWithRelations;
       }),
 
     // Get single agent
@@ -197,6 +275,8 @@ export const appRouter = router({
         enableRAG: z.boolean().default(false),
         enableSTT: z.boolean().default(false),
         enableWebSearch: z.boolean().default(false),
+        collectionIds: z.array(z.number()).optional(),
+        linkedAgentIds: z.array(z.number()).optional(),
         orgSlug: z.string(),
       }))
       .mutation(async ({ input }) => {
@@ -206,6 +286,21 @@ export const appRouter = router({
           enableSTT: input.enableSTT ? 1 : 0,
           enableWebSearch: input.enableWebSearch ? 1 : 0,
         });
+
+        // Link collections to agent
+        if (input.collectionIds && input.collectionIds.length > 0) {
+          for (const collectionId of input.collectionIds) {
+            await db.linkAgentToCollection(agentId, collectionId);
+          }
+        }
+
+        // Link child agents (HAG)
+        if (input.linkedAgentIds && input.linkedAgentIds.length > 0) {
+          for (const childAgentId of input.linkedAgentIds) {
+            await db.linkAgents(agentId, childAgentId);
+          }
+        }
+
         return { id: agentId };
       }),
 
@@ -221,14 +316,38 @@ export const appRouter = router({
         enableRAG: z.boolean().optional(),
         enableSTT: z.boolean().optional(),
         enableWebSearch: z.boolean().optional(),
+        collectionIds: z.array(z.number()).optional(),
+        linkedAgentIds: z.array(z.number()).optional(),
+        orgSlug: z.string().optional(),
       }))
       .mutation(async ({ input }) => {
-        const { id, ...updates } = input;
+        const { id, collectionIds, linkedAgentIds, ...updates } = input;
         const dbUpdates: any = { ...updates };
         if (updates.enableRAG !== undefined) dbUpdates.enableRAG = updates.enableRAG ? 1 : 0;
         if (updates.enableSTT !== undefined) dbUpdates.enableSTT = updates.enableSTT ? 1 : 0;
         if (updates.enableWebSearch !== undefined) dbUpdates.enableWebSearch = updates.enableWebSearch ? 1 : 0;
         await db.updateAgent(id, dbUpdates);
+
+        // Update collections linkage
+        if (collectionIds !== undefined) {
+          // Remove all existing links
+          await db.unlinkAllAgentCollections(id);
+          // Add new links
+          for (const collectionId of collectionIds) {
+            await db.linkAgentToCollection(id, collectionId);
+          }
+        }
+
+        // Update linked agents (HAG)
+        if (linkedAgentIds !== undefined) {
+          // Remove all existing links
+          await db.unlinkAllChildAgents(id);
+          // Add new links
+          for (const childAgentId of linkedAgentIds) {
+            await db.linkAgents(id, childAgentId);
+          }
+        }
+
         return { success: true };
       }),
 
@@ -366,9 +485,10 @@ export const appRouter = router({
         // Process document asynchronously (in background)
         // For now, we'll process it synchronously
         try {
-          await rag.processDocument(documentId, input.content);
+          await rag.processDocument(documentId, input.content, input.mimeType);
           await db.updateDocument(documentId, { status: "completed" });
         } catch (error) {
+          console.error(`Document processing failed for ID ${documentId}:`, error);
           await db.updateDocument(documentId, { status: "failed" });
           throw error;
         }
