@@ -136,3 +136,22 @@
 - [ ] Save checkpoint
 - [ ] Deploy to production
 - [ ] Validate in production: /chat/default/... works in all 3 scenarios
+
+## PATCH 009.A: Definitive Select Fix (Simplified)
+- [x] Add DEFAULT_AGENT_VALUE constant at top of Chat.tsx
+- [x] Simplify Select component (remove IIFE)
+- [x] Use DEFAULT_AGENT_VALUE in value prop and onValueChange
+- [x] Remove .filter() - keep simple map
+- [x] Test Select behavior in dev
+
+## PATCH 009.B: Edit Agent Modal
+- [x] Add Edit button to agent cards in AgentsManager
+- [x] Create editingAgent state
+- [x] Create openEditModal function
+- [x] Build Edit Agent Dialog with form fields
+- [x] Add model selector dropdown in edit modal
+- [x] Implement updateAgent mutation in backend (already existed)
+- [x] Test agent editing flow in dev
+- [ ] Save checkpoint
+- [ ] Deploy to production
+- [ ] Validate all scenarios in production
