@@ -481,6 +481,17 @@ export const appRouter = router({
         orgSlug: z.string(),
       }))
       .mutation(async ({ input }) => {
+        // Check file limit per collection (20 files max)
+        if (input.collectionId) {
+          const existingDocs = await db.getDocumentsByCollection(input.collectionId);
+          if (existingDocs.length >= 20) {
+            throw new TRPCError({ 
+              code: 'BAD_REQUEST', 
+              message: 'Maximum 20 files per collection. Please delete some files or create a new collection.' 
+            });
+          }
+        }
+        
         // Upload to S3
         const fileKey = `${input.orgSlug}/documents/${Date.now()}-${input.name}`;
         const { url } = await storagePut(fileKey, Buffer.from(input.content, 'base64'), input.mimeType);
@@ -500,13 +511,17 @@ export const appRouter = router({
         try {
           await rag.processDocument(documentId, input.content, input.mimeType);
           await db.updateDocument(documentId, { status: "completed" });
+          return { id: documentId, status: "completed" as const };
         } catch (error) {
           console.error(`Document processing failed for ID ${documentId}:`, error);
           await db.updateDocument(documentId, { status: "failed" });
-          throw error;
+          // Don't throw - return success with failed status so UI can show the document
+          return { 
+            id: documentId, 
+            status: "failed" as const,
+            error: error instanceof Error ? error.message : "Unknown error"
+          };
         }
-
-        return { id: documentId };
       }),
 
     // Delete document

@@ -232,3 +232,42 @@
 - [x] Adicionado safety check no DialogPortal (isMounted)
 - [ ] Testar em produção: criar/editar agent sem erros
 - [ ] Testar em produção: chat com agent sem erros
+
+## PATCH 011.C: Upload de Documentos 100% Funcional no Admin
+- [x] Diagnosticar erro "Unexpected token '<', '<!doctype'... is not valid JSON"
+- [x] Corrigir mutation de upload para retornar JSON correto
+- [x] Validar pipeline completo: upload → extração → chunking → embeddings → status
+- [x] Mostrar status correto na UI: Pending → Processing → Ready/Failed
+- [x] Permitir mínimo 20 arquivos por collection (limite adicionado)
+- [ ] Testar upload de 3 documentos reais (PDF, DOCX, TXT) em produção
+- [ ] Verificar que status chega em "Ready" após processamento
+- [x] Garantir mensagem de erro amigável se processamento falhar
+
+## PATCH 011.D: Vincular Collections a Agents (RAG por Agente)
+- [x] Validar multi-select de Collections no Admin → Agents (já implementado)
+- [x] Garantir que agent_collections é atualizada corretamente (create/edit)
+- [x] Validar RAG no chat: agent com RAG ON + collections vinculadas
+- [ ] Testar fluxo completo em produção:
+  - [ ] Criar Collection no Admin
+  - [ ] Upload 2-3 documentos na Collection
+  - [ ] Criar/editar Agent e vincular Collection
+  - [ ] No chat, escolher Agent e perguntar sobre conteúdo dos docs
+  - [ ] Verificar que resposta usa conteúdo dos documentos
+
+## PATCH 011.E: Upload de Documentos pelo Chat (ADIADO)
+- [ ] Adicionar botão/área "Upload de documentos" na tela de chat
+- [ ] Criar Collection automática por conversa: conversation-{conversationId}
+- [ ] Reutilizar endpoint de upload do Admin
+- [ ] Vincular documentos à collection automática
+- [ ] Se agent tem RAG ON, incluir collection automática no escopo
+- [ ] Permitir mínimo 20 arquivos por conversa
+- [ ] Adicionar aviso amigável se exceder limite
+- [ ] Testar upload direto pelo chat
+
+NOTA: Funcionalidade adiada. Usuários devem usar Admin Console para upload.
+
+## Limite de Arquivos
+- [x] Adicionar validação de limite (20 arquivos) no backend
+- [x] Retornar erro claro: "Maximum 20 files per collection..."
+- [ ] Tratar erro no frontend com mensagem amigável (toast)
+- [ ] Documentar como aumentar limite via env/config
