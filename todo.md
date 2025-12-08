@@ -200,3 +200,35 @@
 - [ ] Criar/editar agent → ativar RAG → vincular coleções
 - [ ] Chat com agent RAG → respostas usando conteúdo dos documentos
 - [ ] Criar agent A ligado a agent B → chat com A chama B
+
+## 🔥 CRITICAL PRODUCTION ISSUES (Prioridade Máxima)
+
+### Issue 1: Upload de Documentos Travando
+- [x] Diagnosticar por que documentos ficam em "Processing..." indefinidamente
+- [x] Verificar se processDocument está sendo chamado corretamente
+- [x] Verificar se embeddings estão sendo salvos
+- [x] Adicionar timeout e error handling robusto
+- [x] Garantir que status muda para "completed" ou "failed"
+- [x] Corrigido endpoint embeddings: api.openai.com → forge.manus.im
+- [x] Adicionados logs detalhados em todo o pipeline
+- [ ] Testar upload de PDF, DOCX, TXT em produção
+
+### Issue 2: RAG Não Funcionando no Chat
+- [x] Verificar se agent_collections está sendo consultado
+- [x] Verificar se searchRelevantChunks está retornando resultados
+- [x] Verificar se contexto RAG está sendo incluído no LLM
+- [x] Adicionar logs de debug: "RAG: found N chunks for agent X"
+- [x] Logs adicionados em chat.stream e searchRelevantChunks
+- [ ] Testar pergunta sobre documento com agent RAG ON
+- [ ] Validar resposta usa conteúdo do documento
+
+### Issue 3: NotFoundError em Dialogs/Select (Produção)
+- [x] Revisar todos Dialog em Chat.tsx
+- [x] Revisar todos Dialog em AgentsManager.tsx
+- [x] Revisar todos Dialog em DocumentsManager.tsx
+- [x] Revisar todos Dialog em CollectionsManager.tsx
+- [x] Garantir modal={true} em todos Dialog - todos corretos
+- [x] Verificar que nenhum SelectItem tem value="" - nenhum encontrado
+- [x] Adicionado safety check no DialogPortal (isMounted)
+- [ ] Testar em produção: criar/editar agent sem erros
+- [ ] Testar em produção: chat com agent sem erros

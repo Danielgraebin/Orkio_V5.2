@@ -66,23 +66,35 @@ export const appRouter = router({
         let ragContext = "";
         if (conversation.agentId) {
           const agent = await db.getAgentById(conversation.agentId);
+          console.log(`[Chat] Agent ${agent?.id} (${agent?.name}) - RAG enabled: ${agent?.enableRAG === 1}`);
+          
           if (agent && agent.enableRAG === 1) {
             // Get agent's collections
             const agentCollections = await db.getAgentCollections(agent.id);
             const collectionIds = agentCollections.map(c => c.collectionId);
+            console.log(`[Chat] Agent ${agent.id} has ${collectionIds.length} collections: ${collectionIds.join(", ")}`);
             
             if (collectionIds.length > 0) {
               // Search for relevant chunks
               const relevantChunks = await rag.searchRelevantChunks(input.message, collectionIds, 5);
+              console.log(`[Chat] RAG found ${relevantChunks.length} relevant chunks for agent ${agent.id}, conversation ${input.conversationId}`);
+              
               if (relevantChunks.length > 0) {
                 ragContext = rag.buildRAGContext(relevantChunks);
+                console.log(`[Chat] RAG context built (${ragContext.length} chars)`);
               }
+            } else {
+              console.log(`[Chat] Agent ${agent.id} has RAG ON but no collections linked`);
             }
           }
+        }
 
-          // Check if agent has linked agents (HAG)
+        // Check if agent has linked agents (HAG)
+        if (conversation.agentId) {
+          const agent = await db.getAgentById(conversation.agentId);
           if (agent) {
-          const linkedAgents = await db.getLinkedAgents(agent.id);
+            const linkedAgents = await db.getLinkedAgents(agent.id);
+            console.log(`[Chat] Agent ${agent.id} has ${linkedAgents.length} linked agents`);
           if (linkedAgents.length > 0) {
             // Simple HAG implementation: forward to first linked agent
             const childAgentId = linkedAgents[0].childAgentId;
@@ -106,6 +118,7 @@ export const appRouter = router({
               }
               
               // Prepend child agent system prompt
+              console.log(`[Chat] Delegating to child agent ${childAgent.id} (${childAgent.name})`);
               messages.unshift({
                 role: "system",
                 content: `[Delegated to agent: ${childAgent.name}]\n\n${childSystemContent}`,

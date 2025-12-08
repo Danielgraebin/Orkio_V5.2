@@ -62,6 +62,15 @@ function DialogTrigger({
 function DialogPortal({
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Portal>) {
+  // Ensure portal container exists before rendering
+  const [isMounted, setIsMounted] = React.useState(false);
+  
+  React.useEffect(() => {
+    setIsMounted(true);
+  }, []);
+  
+  if (!isMounted) return null;
+  
   return <DialogPrimitive.Portal data-slot="dialog-portal" {...props} />;
 }
 

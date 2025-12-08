@@ -66,7 +66,12 @@ export function chunkText(text: string, chunkSize: number = 500, overlap: number
  */
 export async function generateEmbedding(text: string): Promise<number[]> {
   try {
-    const response = await fetch("https://api.openai.com/v1/embeddings", {
+    // Use Manus Forge API for embeddings
+    const apiUrl = ENV.forgeApiUrl && ENV.forgeApiUrl.trim().length > 0
+      ? `${ENV.forgeApiUrl.replace(/\/$/, "")}/v1/embeddings`
+      : "https://forge.manus.im/v1/embeddings";
+
+    const response = await fetch(apiUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -80,7 +85,7 @@ export async function generateEmbedding(text: string): Promise<number[]> {
 
     if (!response.ok) {
       const error = await response.text();
-      throw new Error(`OpenAI Embeddings API error: ${response.status} ${error}`);
+      throw new Error(`Embeddings API error: ${response.status} ${error}`);
     }
 
     const data = await response.json();
@@ -119,8 +124,11 @@ export function cosineSimilarity(a: number[], b: number[]): number {
  */
 export async function processDocument(documentId: number, content: string, mimeType: string): Promise<void> {
   try {
+    console.log(`[RAG] Processing document ${documentId} (${mimeType})...`);
+    
     // Extract text from document
     const text = await extractText(content, mimeType);
+    console.log(`[RAG] Extracted ${text.length} characters from document ${documentId}`);
 
     if (!text || text.trim().length === 0) {
       throw new Error("No text extracted from document");
@@ -128,6 +136,7 @@ export async function processDocument(documentId: number, content: string, mimeT
 
     // Chunk the document
     const chunks = chunkText(text);
+    console.log(`[RAG] Generated ${chunks.length} chunks for document ${documentId}`);
 
     if (chunks.length === 0) {
       throw new Error("No chunks generated from document");
@@ -136,6 +145,7 @@ export async function processDocument(documentId: number, content: string, mimeT
     // Generate embeddings for each chunk
     for (let i = 0; i < chunks.length; i++) {
       const chunk = chunks[i];
+      console.log(`[RAG] Generating embedding for chunk ${i + 1}/${chunks.length}...`);
       const embedding = await generateEmbedding(chunk);
 
       // Store embedding
@@ -146,7 +156,10 @@ export async function processDocument(documentId: number, content: string, mimeT
         embedding: JSON.stringify(embedding),
       });
     }
+    
+    console.log(`[RAG] Document ${documentId} processed successfully with ${chunks.length} embeddings`);
   } catch (error) {
+    console.error(`[RAG] Document processing failed for ${documentId}:`, error);
     throw new Error(`Document processing failed: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
@@ -159,19 +172,24 @@ export async function searchRelevantChunks(
   collectionIds: number[],
   topK: number = 5
 ): Promise<Array<{ content: string; score: number; documentId: number }>> {
+  console.log(`[RAG] Searching for relevant chunks in collections: ${collectionIds.join(", ")}`);
+  
   // Generate query embedding
   const queryEmbedding = await generateEmbedding(query);
 
   // Get all embeddings from specified collections
   const allEmbeddings = await db.getAllEmbeddings();
+  console.log(`[RAG] Total embeddings in database: ${allEmbeddings.length}`);
 
   // Filter embeddings by collection
   const documents = await Promise.all(
     collectionIds.map(id => db.getDocumentsByCollection(id))
   );
   const documentIds = new Set(documents.flat().map(d => d.id));
+  console.log(`[RAG] Documents in collections: ${documentIds.size}`);
 
   const relevantEmbeddings = allEmbeddings.filter(e => documentIds.has(e.documentId));
+  console.log(`[RAG] Relevant embeddings found: ${relevantEmbeddings.length}`);
 
   // Calculate similarity scores
   const scored = relevantEmbeddings.map(e => {
@@ -186,7 +204,10 @@ export async function searchRelevantChunks(
 
   // Sort by score and return top K
   scored.sort((a, b) => b.score - a.score);
-  return scored.slice(0, topK);
+  const topResults = scored.slice(0, topK);
+  console.log(`[RAG] Returning top ${topResults.length} chunks (scores: ${topResults.map(r => r.score.toFixed(3)).join(", ")})`);
+  
+  return topResults;
 }
 
 /**
