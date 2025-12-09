@@ -69,10 +69,18 @@ export const appRouter = router({
           console.log(`[Chat] Agent ${agent?.id} (${agent?.name}) - RAG enabled: ${agent?.enableRAG === 1}`);
           
           if (agent && agent.enableRAG === 1) {
-            // Get agent's collections
             const agentCollections = await db.getAgentCollections(agent.id);
-            const collectionIds = agentCollections.map(c => c.collectionId);
-            console.log(`[Chat] Agent ${agent.id} has ${collectionIds.length} collections: ${collectionIds.join(", ")}`);
+            let collectionIds = agentCollections.map(c => c.collectionId);
+            
+            // Also include conversation collection if it exists
+            const conversationCollectionName = `conversation-${conversation.id}`;
+            const allCollections = await db.getCollectionsByOrg(conversation.orgSlug);
+            const conversationCollection = allCollections.find((c: { name: string }) => c.name === conversationCollectionName);
+            if (conversationCollection) {
+              collectionIds.push(conversationCollection.id);
+            }
+            
+            console.log(`[Chat] Agent ${agent.id} has ${collectionIds.length} collections for RAG (including conversation)`);
             
             if (collectionIds.length > 0) {
               // Search for relevant chunks
@@ -475,15 +483,36 @@ export const appRouter = router({
     upload: protectedProcedure
       .input(z.object({
         name: z.string(),
-        content: z.string(), // Base64 or text content
+        content: z.string(), // base64
         mimeType: z.string(),
         collectionId: z.number().optional(),
+        conversationId: z.number().optional(),
         orgSlug: z.string(),
       }))
       .mutation(async ({ input }) => {
+        // If no collectionId but conversationId provided, create/get conversation collection
+        let collectionId = input.collectionId;
+        if (!collectionId && input.conversationId) {
+          const collectionName = `conversation-${input.conversationId}`;
+          // Check if collection exists
+          const existingCollections = await db.getCollectionsByOrg(input.orgSlug);
+          const existingCollection = existingCollections.find((c: { name: string }) => c.name === collectionName);
+          
+          if (existingCollection) {
+            collectionId = existingCollection.id;
+          } else {
+            // Create new collection for this conversation
+            collectionId = await db.createCollection({
+              name: collectionName,
+              description: `Documents for conversation ${input.conversationId}`,
+              orgSlug: input.orgSlug,
+            });
+          }
+        }
+        
         // Check file limit per collection (20 files max)
-        if (input.collectionId) {
-          const existingDocs = await db.getDocumentsByCollection(input.collectionId);
+        if (collectionId) {
+          const existingDocs = await db.getDocumentsByCollection(collectionId);
           if (existingDocs.length >= 20) {
             throw new TRPCError({ 
               code: 'BAD_REQUEST', 

@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { trpc } from "@/lib/trpc";
-import { Loader2, MessageSquare, Mic, MicOff, Plus, Send, Trash2 } from "lucide-react";
+import { Loader2, MessageSquare, Mic, MicOff, Paperclip, Plus, Send, Trash2, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useLocation, useRoute } from "wouter";
 import { Streamdown } from "streamdown";
@@ -33,6 +33,7 @@ export default function Chat() {
   const [isRecording, setIsRecording] = useState(false);
   const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
   const [localMessages, setLocalMessages] = useState<Array<{ role: string; content: string }>>([]);
+  const [uploadedFiles, setUploadedFiles] = useState<Array<{ id: number; name: string; status: string }>>([]);
 
   // Fetch conversations list
   const { data: conversations, refetch: refetchConversations } = trpc.conversations.list.useQuery(
@@ -87,6 +88,36 @@ export default function Chat() {
       toast.error(`Failed to send message: ${error.message}`);
     },
   });
+
+  // Upload document mutation
+  const uploadDocument = trpc.documents.upload.useMutation({
+    onSuccess: (data) => {
+      toast.success("Document uploaded successfully");
+      setUploadedFiles((prev) => [...prev, { id: data.id, name: "Document", status: data.status || "completed" }]);
+    },
+    onError: (error) => {
+      toast.error(`Upload failed: ${error.message}`);
+    },
+  });
+
+  // Handle file upload
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !conversationId) return;
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64 = (reader.result as string).split(",")[1];
+      uploadDocument.mutate({
+        name: file.name,
+        content: base64,
+        mimeType: file.type,
+        conversationId: conversationId || undefined,
+        orgSlug,
+      });
+    };
+    reader.readAsDataURL(file);
+  };
 
   // Update local messages when conversation data changes
   useEffect(() => {
@@ -316,6 +347,21 @@ export default function Chat() {
                   >
                     {isRecording ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
                   </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => document.getElementById("file-upload")?.click()}
+                    disabled={uploadDocument.isPending}
+                  >
+                    <Paperclip className="w-4 h-4" />
+                  </Button>
+                  <input
+                    id="file-upload"
+                    type="file"
+                    accept=".pdf,.docx,.txt,.md"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                  />
                   <Button onClick={handleSendMessage} disabled={!message.trim() || sendMessage.isPending}>
                     <Send className="w-4 h-4" />
                   </Button>

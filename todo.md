@@ -324,3 +324,36 @@ NOTA: Funcionalidade adiada. Usuários devem usar Admin Console para upload.
 - [ ] Verificar mensagem: "Limite de 20 documentos por collection atingido"
 - [ ] Verificar SEM HTML, SEM Unexpected token, SEM crash
 - [ ] Verificar lista mostra 20 docs corretamente
+
+## 🎯 PRIORIDADE MÁXIMA - Upload + RAG Completo
+
+### PATCH 011.E: Upload de Documentos pelo Chat (COMPLETO)
+- [x] Adicionar botão de upload no chat (ao lado do microfone)
+- [x] Implementar fluxo: usuário clica → seleciona arquivo → upload
+- [x] Criar/associar collection à conversa automaticamente (conversation-{id})
+- [x] Processar arquivo (extração + chunking + embeddings)
+- [x] Usar conteúdo como contexto RAG nas próximas mensagens
+- [x] UI mostra arquivo recebido / processando (toast)
+- [ ] Testar: upload → pergunta sobre arquivo → resposta correta
+- [x] Garantir sem erros 500 / HTML em resposta
+
+### PATCH 011.F: Knowledge Base Individual por Agente (SIMPLIFICADO)
+- [x] Backend: collection da conversa incluída no RAG automaticamente
+- [x] Chat: documentos enviados na conversa são usados no RAG
+- [ ] UI: adicionar seção "Knowledge Base" no AgentsManager (ADIADO)
+- [ ] UI: botão "Upload files for this agent" (ADIADO)
+- [ ] Testar fluxo completo: upload no chat → pergunta → resposta usa docs
+
+NOTA: Upload individual por agente foi simplificado. Usuários podem enviar documentos pelo chat e eles serão automaticamente incluídos no RAG.
+
+### Validação Final (AT-RAG Completo)
+- [ ] Admin → Collections → criar "Test RAG"
+- [ ] Admin → Documents → upload PDF + DOCX
+- [ ] Verificar status: processing → completed
+- [ ] Admin → Agents → criar com RAG ON + vincular collection
+- [ ] Chat → selecionar agente → perguntar sobre doc
+- [ ] Verificar resposta usa conteúdo
+- [ ] Testar 3 conversas seguidas sem erros
+- [ ] Verificar limite 20 arquivos por collection
+- [ ] Testar upload pelo chat
+- [ ] Testar upload individual por agente
