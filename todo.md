@@ -357,3 +357,65 @@ NOTA: Upload individual por agente foi simplificado. Usuários podem enviar docu
 - [ ] Verificar limite 20 arquivos por collection
 - [ ] Testar upload pelo chat
 - [ ] Testar upload individual por agente
+
+## 🧪 TESTES AT-RAG NO AMBIENTE PUBLICADO (https://orkioplatform-jbcwtaxe.manus.space)
+
+**STATUS:** Aguardando publicação do checkpoint 8bdae4d4 para execução dos testes.
+
+### AT-RAG-01 – Upload no Admin (Collections + Documents)
+- [ ] Entrar em /admin logado como dangraebin@gmail.com
+- [ ] Aba Collections → criar collection "Test RAG Admin"
+- [ ] Aba Documents → Upload Document
+- [ ] Enviar 1 arquivo PDF ou DOCX pequeno
+- [ ] Verificar status: processing → completed (sem erro JSON/HTML)
+- [ ] Confirmar logs backend: extração + chunking + embeddings OpenAI
+
+### AT-RAG-02 – RAG no Chat usando Documentos do Admin
+- [ ] Admin → Agents → criar "RAG Admin Agent"
+- [ ] RAG ON + vincular collection "Test RAG Admin"
+- [ ] Front / → Start Chatting → selecionar "RAG Admin Agent"
+- [ ] Fazer pergunta sobre conteúdo do documento
+- [ ] Verificar: resposta usa conteúdo do documento
+- [ ] Verificar logs: [RAG] found N chunks for agent ...
+
+### AT-RAG-03 – Upload pelo Chat (Paperclip)
+- [ ] Chat → clicar Paperclip ao lado do microfone
+- [ ] Selecionar PDF/DOCX de teste
+- [ ] Verificar: seletor abre normalmente
+- [ ] Verificar: documento aparece (lista/status)
+- [ ] Verificar: sem erro "Unexpected token '<'" ou NotFoundError
+- [ ] Enviar mensagem sobre conteúdo do arquivo
+- [ ] Verificar: RAG considera documento (collection conversation-{id})
+- [ ] Verificar: resposta reflete conteúdo enviado
+
+### AT-RAG-04 – Knowledge Base por agente (backend funcional)
+- [ ] Criar/editar agente com RAG ON
+- [ ] Verificar: collection `agent-{agentId}-kb` criada automaticamente
+- [ ] Verificar: collection vinculada ao agente automaticamente
+- [ ] Verificar: documentos do chat considerados junto com KB do agente
+
+## 🐛 ERROS REPORTADOS EM PRODUÇÃO
+
+### Erro 1: NotFoundError removeChild
+- [ ] Diagnosticar erro: "Failed to execute 'removeChild' on 'Node'"
+- [ ] Ocorre na página de chat
+- [ ] Reproduzir erro em dev
+- [ ] Corrigir e testar
+
+### Erro 2: Upload gera JSON error
+- [ ] Diagnosticar erro: "Unexpected token '<', '<!doctype'..."
+- [ ] Ocorre no upload de documentos
+- [ ] Verificar se é erro 500 retornando HTML
+- [ ] Corrigir e testar
+
+### Erro 3: Paperclip não funciona
+- [ ] Seletor não abre em alguns momentos
+- [ ] Sem status de upload/processing
+- [ ] Próximas mensagens não usam conteúdo
+- [ ] Diagnosticar e corrigir
+
+### Erro 4: RAG não usa documentos
+- [ ] Respostas não citam conteúdo dos PDFs/DOCX
+- [ ] Verificar se embeddings estão sendo salvos
+- [ ] Verificar se busca RAG está funcionando
+- [ ] Verificar se contexto está sendo incluído no LLM
