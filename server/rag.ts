@@ -6,8 +6,7 @@
 import { invokeLLM } from "./_core/llm";
 import * as db from "./db";
 import { ENV } from "./_core/env";
-import * as pdfParse from "pdf-parse";
-import mammoth from "mammoth";
+// Lazy load heavy dependencies to reduce memory usage during startup
 
 /**
  * Extract text from different file formats
@@ -22,6 +21,7 @@ export async function extractText(content: string, mimeType: string): Promise<st
     // Handle PDF
     if (mimeType === "application/pdf") {
       const buffer = Buffer.from(content, 'base64');
+      const pdfParse = await import("pdf-parse");
       const data = await (pdfParse as any).default(buffer);
       return data.text;
     }
@@ -29,7 +29,8 @@ export async function extractText(content: string, mimeType: string): Promise<st
     // Handle DOCX
     if (mimeType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") {
       const buffer = Buffer.from(content, 'base64');
-      const result = await mammoth.extractRawText({ buffer });
+      const mammoth = await import("mammoth");
+      const result = await mammoth.default.extractRawText({ buffer });
       return result.value;
     }
 

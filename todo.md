@@ -419,3 +419,20 @@ NOTA: Upload individual por agente foi simplificado. Usuários podem enviar docu
 - [ ] Verificar se embeddings estão sendo salvos
 - [ ] Verificar se busca RAG está funcionando
 - [ ] Verificar se contexto está sendo incluído no LLM
+
+## 🔥 ERRO DE DEPLOYMENT - TIMEOUT
+
+**Erro:** deployment failed: activity error (type: PrepareImageActivity, scheduledEventID: 5, startedEventID: 0, identity: ): activity ScheduleToClose timeout
+
+**Possíveis causas:**
+- [ ] Build demora muito (dependências pesadas: pdf-parse, mammoth)
+- [ ] Migração do banco trava
+- [ ] Timeout configurado muito curto no Manus
+- [ ] Processo de inicialização trava
+
+**Ações:**
+- [ ] Verificar package.json para dependências desnecessárias
+- [ ] Otimizar imports (lazy loading se possível)
+- [ ] Verificar se há processos síncronos pesados no startup
+- [ ] Testar build localmente para medir tempo
+- [ ] Considerar remover dependências pesadas se não essenciais
