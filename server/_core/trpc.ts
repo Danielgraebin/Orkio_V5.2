@@ -5,6 +5,19 @@ import type { TrpcContext } from "./context";
 
 const t = initTRPC.context<TrpcContext>().create({
   transformer: superjson,
+  errorFormatter({ shape, error }) {
+    // Force stable JSON format (no stack in production)
+    return {
+      ...shape,
+      message: error.message || "Internal error",
+      data: {
+        ...shape.data,
+        code: shape.data.code,
+        // Remove stack trace in production for security
+        stack: process.env.NODE_ENV === "production" ? undefined : shape.data.stack,
+      },
+    };
+  },
 });
 
 export const router = t.router;

@@ -13,6 +13,24 @@ import { getRagQueue } from "./ragQueue";
 import { logger } from "./_core/logger";
 import { ENV } from "./_core/env";
 
+// Timeout wrapper for long-running operations
+function withTimeout<T>(promise: Promise<T>, ms: number, tag: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error(`${tag} timeout after ${ms}ms`));
+    }, ms);
+    promise
+      .then((value) => {
+        clearTimeout(timer);
+        resolve(value);
+      })
+      .catch((error) => {
+        clearTimeout(timer);
+        reject(error);
+      });
+  });
+}
+
 // Admin-only procedure
 const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
   if (ctx.user.role !== 'admin') {
@@ -551,13 +569,17 @@ export const appRouter = router({
             }
           }
 
-          // Storage (keep original file URL)
+          // Storage (keep original file URL) with timeout
           let url: string;
           try {
-            const result = await storagePut(
-              `orgs/${input.orgSlug}/uploads/${Date.now()}-${input.name}`,
-              Buffer.from(input.content, 'base64'),
-              input.mimeType
+            const result = await withTimeout(
+              storagePut(
+                `orgs/${input.orgSlug}/uploads/${Date.now()}-${input.name}`,
+                Buffer.from(input.content, 'base64'),
+                input.mimeType
+              ),
+              20000,
+              "storagePut"
             );
             url = result.url;
           } catch (storageError) {
@@ -602,7 +624,11 @@ export const appRouter = router({
                 // Queue failed, fall back to inline
                 logger.warn("documents.upload.queue_failed_fallback_inline", { documentId, error: error instanceof Error ? error.message : String(error) });
                 try {
-                  await rag.processDocument(documentId, input.content, input.mimeType);
+                  await withTimeout(
+                    rag.processDocument(documentId, input.content, input.mimeType),
+                    30000,
+                    "ingest"
+                  );
                   await db.updateDocument(documentId, { status: "completed" });
                   logger.info("documents.upload.completed", { documentId, collectionId, mode: "inline_fallback" });
                 } catch (inlineError: any) {
@@ -614,7 +640,11 @@ export const appRouter = router({
               // Queue not available, use inline
               logger.info("documents.upload.inline_mode", { documentId, reason: "queue_not_available" });
               try {
-                await rag.processDocument(documentId, input.content, input.mimeType);
+                await withTimeout(
+                  rag.processDocument(documentId, input.content, input.mimeType),
+                  30000,
+                  "ingest"
+                );
                 await db.updateDocument(documentId, { status: "completed" });
                 logger.info("documents.upload.completed", { documentId, collectionId, mode: "inline" });
               } catch (error: any) {
@@ -625,7 +655,11 @@ export const appRouter = router({
           } else {
             // Inline mode
             try {
-              await rag.processDocument(documentId, input.content, input.mimeType);
+              await withTimeout(
+                rag.processDocument(documentId, input.content, input.mimeType),
+                30000,
+                "ingest"
+              );
               await db.updateDocument(documentId, { status: "completed" });
               logger.info("documents.upload.completed", { documentId, collectionId, mode: "inline" });
             } catch (error: any) {
