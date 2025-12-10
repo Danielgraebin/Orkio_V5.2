@@ -11,6 +11,8 @@ export const ENV = {
   // RAG/KB configuration
   maxFilesPerCollection: parseInt(process.env.MAX_FILES_PER_COLLECTION || "20", 10),
   autoAgentKB: (process.env.AUTO_AGENT_KB || "true").toLowerCase() === "true",
+  uploadMaxMB: parseInt(process.env.UPLOAD_MAX_MB || "16", 10),
+  requestBodyLimitMB: parseInt(process.env.REQUEST_BODY_LIMIT_MB || "20", 10),
   
   // Embeddings configuration
   embeddingProvider: (process.env.EMBEDDING_PROVIDER || "forge") as "forge" | "openai",

@@ -61,6 +61,14 @@ export default function DocumentsManager({ orgSlug }: DocumentsManagerProps) {
   const handleUpload = async () => {
     if (!file) return;
 
+    // Validate file size (16 MB limit)
+    const maxSizeMB = parseInt(import.meta.env.VITE_UPLOAD_MAX_MB || "16", 10);
+    const fileSizeMB = file.size / (1024 * 1024);
+    if (fileSizeMB > maxSizeMB) {
+      toast.error(`File size (${fileSizeMB.toFixed(2)} MB) exceeds maximum allowed size of ${maxSizeMB} MB.`);
+      return;
+    }
+
     // Read file as base64
     const reader = new FileReader();
     reader.onload = async (e) => {

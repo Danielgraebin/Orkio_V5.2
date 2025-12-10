@@ -108,6 +108,15 @@ export default function Chat() {
     const file = event.target.files?.[0];
     if (!file || !conversationId) return;
 
+    // Validate file size (16 MB limit)
+    const maxSizeMB = parseInt(import.meta.env.VITE_UPLOAD_MAX_MB || "16", 10);
+    const fileSizeMB = file.size / (1024 * 1024);
+    if (fileSizeMB > maxSizeMB) {
+      toast.error(`File size (${fileSizeMB.toFixed(2)} MB) exceeds maximum allowed size of ${maxSizeMB} MB.`);
+      event.target.value = ""; // Reset input
+      return;
+    }
+
     const reader = new FileReader();
     reader.onloadend = () => {
       const base64 = (reader.result as string).split(",")[1];
@@ -118,6 +127,7 @@ export default function Chat() {
         conversationId: conversationId || undefined,
         orgSlug,
       });
+      event.target.value = ""; // Reset input after successful read
     };
     reader.readAsDataURL(file);
   };

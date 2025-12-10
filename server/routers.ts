@@ -521,30 +521,55 @@ export const appRouter = router({
         orgSlug: z.string()
       }))
       .mutation(async ({ input }) => {
-        // Collection target: explicit OR from conversation
-        let collectionId = input.collectionId;
-        if (!collectionId && input.conversationId) {
-          const name = `conversation-${input.conversationId}`;
-          const existing = (await db.getCollectionsByOrg(input.orgSlug)).find(c => c.name === name);
-          collectionId = existing?.id ?? await db.createCollection({
-            name, description: `Documents for conversation ${input.conversationId}`, orgSlug: input.orgSlug
-          });
-        }
-
-        // Limit per collection
-        if (collectionId) {
-          const existingDocs = await db.getDocumentsByCollection(collectionId);
-          if (existingDocs.length >= ENV.maxFilesPerCollection) {
-            throw new TRPCError({ code: 'BAD_REQUEST', message: `Maximum ${ENV.maxFilesPerCollection} files per collection.` });
+        try {
+          // Validate file size (base64 content)
+          const fileSizeBytes = Buffer.from(input.content, 'base64').length;
+          const fileSizeMB = fileSizeBytes / (1024 * 1024);
+          if (fileSizeMB > ENV.uploadMaxMB) {
+            throw new TRPCError({ 
+              code: 'PAYLOAD_TOO_LARGE', 
+              message: `File size (${fileSizeMB.toFixed(2)} MB) exceeds maximum allowed size of ${ENV.uploadMaxMB} MB.` 
+            });
           }
-        }
+          logger.info("documents.upload.start", { name: input.name, sizeMB: fileSizeMB.toFixed(2), mimeType: input.mimeType });
 
-        // Storage (keep original file URL)
-        const { url } = await storagePut(
-          `orgs/${input.orgSlug}/uploads/${Date.now()}-${input.name}`,
-          Buffer.from(input.content, 'base64'),
-          input.mimeType
-        );
+          // Collection target: explicit OR from conversation
+          let collectionId = input.collectionId;
+          if (!collectionId && input.conversationId) {
+            const name = `conversation-${input.conversationId}`;
+            const existing = (await db.getCollectionsByOrg(input.orgSlug)).find(c => c.name === name);
+            collectionId = existing?.id ?? await db.createCollection({
+              name, description: `Documents for conversation ${input.conversationId}`, orgSlug: input.orgSlug
+            });
+          }
+
+          // Limit per collection
+          if (collectionId) {
+            const existingDocs = await db.getDocumentsByCollection(collectionId);
+            if (existingDocs.length >= ENV.maxFilesPerCollection) {
+              throw new TRPCError({ code: 'BAD_REQUEST', message: `Maximum ${ENV.maxFilesPerCollection} files per collection.` });
+            }
+          }
+
+          // Storage (keep original file URL)
+          let url: string;
+          try {
+            const result = await storagePut(
+              `orgs/${input.orgSlug}/uploads/${Date.now()}-${input.name}`,
+              Buffer.from(input.content, 'base64'),
+              input.mimeType
+            );
+            url = result.url;
+          } catch (storageError) {
+            logger.error("documents.upload.storage_failed", { 
+              name: input.name, 
+              error: storageError instanceof Error ? storageError.message : String(storageError) 
+            });
+            throw new TRPCError({ 
+              code: 'INTERNAL_SERVER_ERROR', 
+              message: 'Failed to upload file to storage. Please try again.' 
+            });
+          }
 
         // Initial status (queue or inline)
         const initialStatus = ENV.ragIngestMode === 'queue' ? "queued" : "processing";
@@ -557,37 +582,48 @@ export const appRouter = router({
           status: initialStatus
         });
 
-        // INGEST: queue with retries and backoff (if queue mode and queue available)
-        if (ENV.ragIngestMode === 'queue') {
-          const queue = getRagQueue();
-          if (queue) {
-            try {
-              await queue.add(
-                'ingest',
-                { documentId, content: input.content, mimeType: input.mimeType },
-                {
-                  attempts: 5,
-                  backoff: { type: 'exponential', delay: 2000 },
-                  removeOnComplete: true,
-                  removeOnFail: false
+          // INGEST: queue with retries and backoff (if queue mode and queue available)
+          if (ENV.ragIngestMode === 'queue') {
+            const queue = getRagQueue();
+            if (queue) {
+              try {
+                await queue.add(
+                  'ingest',
+                  { documentId, content: input.content, mimeType: input.mimeType },
+                  {
+                    attempts: 5,
+                    backoff: { type: 'exponential', delay: 2000 },
+                    removeOnComplete: true,
+                    removeOnFail: false
+                  }
+                );
+                logger.info("documents.upload.queued", { documentId, collectionId });
+              } catch (error) {
+                // Queue failed, fall back to inline
+                logger.warn("documents.upload.queue_failed_fallback_inline", { documentId, error: error instanceof Error ? error.message : String(error) });
+                try {
+                  await rag.processDocument(documentId, input.content, input.mimeType);
+                  await db.updateDocument(documentId, { status: "completed" });
+                  logger.info("documents.upload.completed", { documentId, collectionId, mode: "inline_fallback" });
+                } catch (inlineError: any) {
+                  await db.updateDocument(documentId, { status: "failed" });
+                  logger.error("documents.upload.failed", { documentId, error: inlineError?.message || String(inlineError) });
                 }
-              );
-              logger.info("documents.upload.queued", { documentId, collectionId });
-            } catch (error) {
-              // Queue failed, fall back to inline
-              logger.warn("documents.upload.queue_failed_fallback_inline", { documentId, error: error instanceof Error ? error.message : String(error) });
+              }
+            } else {
+              // Queue not available, use inline
+              logger.info("documents.upload.inline_mode", { documentId, reason: "queue_not_available" });
               try {
                 await rag.processDocument(documentId, input.content, input.mimeType);
                 await db.updateDocument(documentId, { status: "completed" });
-                logger.info("documents.upload.completed", { documentId, collectionId, mode: "inline_fallback" });
-              } catch (inlineError: any) {
+                logger.info("documents.upload.completed", { documentId, collectionId, mode: "inline" });
+              } catch (error: any) {
                 await db.updateDocument(documentId, { status: "failed" });
-                logger.error("documents.upload.failed", { documentId, error: inlineError?.message || String(inlineError) });
+                logger.error("documents.upload.failed", { documentId, error: error?.message || String(error) });
               }
             }
           } else {
-            // Queue not available, use inline
-            logger.info("documents.upload.inline_mode", { documentId, reason: "queue_not_available" });
+            // Inline mode
             try {
               await rag.processDocument(documentId, input.content, input.mimeType);
               await db.updateDocument(documentId, { status: "completed" });
@@ -597,19 +633,22 @@ export const appRouter = router({
               logger.error("documents.upload.failed", { documentId, error: error?.message || String(error) });
             }
           }
-        } else {
-          // Inline mode
-          try {
-            await rag.processDocument(documentId, input.content, input.mimeType);
-            await db.updateDocument(documentId, { status: "completed" });
-            logger.info("documents.upload.completed", { documentId, collectionId, mode: "inline" });
-          } catch (error: any) {
-            await db.updateDocument(documentId, { status: "failed" });
-            logger.error("documents.upload.failed", { documentId, error: error?.message || String(error) });
-          }
-        }
 
-        return { id: documentId };
+          return { id: documentId, status: "processing" };
+        } catch (error) {
+          // Catch any unexpected errors and return proper TRPCError
+          if (error instanceof TRPCError) {
+            throw error;
+          }
+          logger.error("documents.upload.unexpected_error", { 
+            name: input.name, 
+            error: error instanceof Error ? error.message : String(error) 
+          });
+          throw new TRPCError({ 
+            code: 'INTERNAL_SERVER_ERROR', 
+            message: error instanceof Error ? error.message : 'Upload failed. Please try again.' 
+          });
+        }
       }),
 
     // Delete document
