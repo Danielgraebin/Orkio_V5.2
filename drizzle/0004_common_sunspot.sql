@@ -1,0 +1,1 @@
+ALTER TABLE `documents` MODIFY COLUMN `status` enum('pending','queued','processing','completed','failed') NOT NULL DEFAULT 'pending';

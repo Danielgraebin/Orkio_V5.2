@@ -89,11 +89,14 @@ export default function Chat() {
     },
   });
 
+  // Set agent mutation
+  const setAgentMutation = trpc.conversations.setAgent.useMutation();
+
   // Upload document mutation
   const uploadDocument = trpc.documents.upload.useMutation({
     onSuccess: (data) => {
       toast.success("Document uploaded successfully");
-      setUploadedFiles((prev) => [...prev, { id: data.id, name: "Document", status: data.status || "completed" }]);
+      setUploadedFiles((prev) => [...prev, { id: data.id, name: "Document", status: "queued" }]);
     },
     onError: (error) => {
       toast.error(`Upload failed: ${error.message}`);
@@ -308,10 +311,11 @@ export default function Chat() {
                         : DEFAULT_AGENT_VALUE
                     }
                     onValueChange={(value) => {
-                      if (value === DEFAULT_AGENT_VALUE) {
-                        setSelectedAgentId(null);
-                      } else {
-                        setSelectedAgentId(parseInt(value, 10));
+                      const agentId = value === DEFAULT_AGENT_VALUE ? null : parseInt(value, 10);
+                      setSelectedAgentId(agentId);
+                      // Persist agentId to conversation
+                      if (conversationId) {
+                        setAgentMutation.mutate({ id: conversationId, agentId, orgSlug });
                       }
                     }}
                   >

@@ -29,6 +29,13 @@
       "when": 1765215133341,
       "tag": "0003_clever_solo",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1765391986803,
+      "tag": "0004_common_sunspot",
+      "breakpoints": true
     }
   ]
 }

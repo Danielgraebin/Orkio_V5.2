@@ -106,7 +106,7 @@ export const documents = mysqlTable("documents", {
   contentUrl: text("contentUrl"), // S3 URL
   collectionId: int("collectionId"),
   orgSlug: varchar("orgSlug", { length: 64 }).notNull(),
-  status: mysqlEnum("status", ["pending", "processing", "completed", "failed"]).default("pending").notNull(),
+  status: mysqlEnum("status", ["pending", "queued", "processing", "completed", "failed"]).default("pending").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

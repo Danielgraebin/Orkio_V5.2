@@ -436,3 +436,40 @@ NOTA: Upload individual por agente foi simplificado. Usuários podem enviar docu
 - [ ] Verificar se há processos síncronos pesados no startup
 - [ ] Testar build localmente para medir tempo
 - [ ] Considerar remover dependências pesadas se não essenciais
+
+## 🚀 PATCH 001+002 - Chat Upload → RAG + KB + Fila + Logs
+
+**Problemas resolvidos:**
+- [ ] Uploads no chat não entram no RAG
+- [ ] `agentId` não persiste na conversa
+- [ ] Não existe Knowledge Base por agente na UI
+- [ ] Ingestão síncrona bloqueia requests
+- [ ] Sem observabilidade (logs estruturados)
+
+**Implementação:**
+- [ ] Instalar dependências: bullmq, ioredis
+- [ ] Criar `server/_core/logger.ts` (logs JSON estruturados)
+- [ ] Criar `server/ragQueue.ts` (fila BullMQ)
+- [ ] Criar `server/workers/ragWorker.ts` (worker de ingestão)
+- [ ] Atualizar `server/_core/env.ts` (Redis, fila, logs)
+- [ ] Atualizar `server/routers.ts`:
+  - [ ] Persistir `agentId` na conversa (conversations.setAgent)
+  - [ ] Upload para collection da conversa
+  - [ ] KB automática por agente (`agent-{id}`)
+  - [ ] Ingestão via fila (queue/inline mode)
+  - [ ] Novos endpoints: documents.status, documents.listByCollection, documents.delete
+  - [ ] agents.get retorna kbCollectionId
+- [ ] Atualizar `client/src/pages/Chat.tsx`:
+  - [ ] Persistir agentId no backend quando selecionado
+  - [ ] Upload via Paperclip vincula à conversa
+- [ ] Criar UI de Knowledge Base no AgentsManager:
+  - [ ] Aba "Knowledge Base" no edit agent
+  - [ ] Upload de arquivos para KB do agente
+  - [ ] Lista de documentos com status
+  - [ ] Botão delete por documento
+
+**Validação (AT-04):**
+- [ ] Cenário A: Chat com RAG (upload → pergunta → resposta usa conteúdo)
+- [ ] Cenário B: KB do agente (upload no Admin → chat usa)
+- [ ] Cenário C: Limite configurável (MAX_FILES_PER_COLLECTION)
+- [ ] Cenário D: Fila/observabilidade (worker parado → queued → iniciar → completed)

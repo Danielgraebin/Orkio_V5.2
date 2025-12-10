@@ -129,6 +129,13 @@ export async function getConversationById(id: number) {
   return result.length > 0 ? result[0] : undefined;
 }
 
+export async function updateConversation(id: number, data: Partial<InsertConversation>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.update(conversations).set(data).where(eq(conversations.id, id));
+}
+
 export async function deleteConversation(id: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");

@@ -9,6 +9,17 @@ import * as db from "./db";
 import * as rag from "./rag";
 import * as stt from "./stt";
 import { storagePut } from "./storage";
+// ragQueue is optional - only used in queue mode
+let ragQueue: any = null;
+if (ENV.ragIngestMode === 'queue') {
+  try {
+    ragQueue = require("./ragQueue").ragQueue;
+  } catch (err) {
+    console.warn("[routers] ragQueue not available, using inline mode");
+  }
+}
+import { logger } from "./_core/logger";
+import { ENV } from "./_core/env";
 
 // Admin-only procedure
 const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
@@ -54,6 +65,7 @@ export const appRouter = router({
           role: "user",
           content: input.message,
         });
+        logger.info("chat.stream.user_message", { conversationId: input.conversationId, agentId: conversation.agentId, messageLength: input.message.length });
 
         // Get conversation history
         const history = await db.getMessagesByConversation(input.conversationId);
@@ -163,6 +175,7 @@ export const appRouter = router({
           role: "assistant",
           content: assistantMessage,
         });
+        logger.info("chat.stream.assistant_response", { conversationId: input.conversationId, agentId: conversation.agentId, responseLength: assistantMessage.length, hadRAG: !!ragContext });
 
         return { content: assistantMessage };
       }),
@@ -211,6 +224,18 @@ export const appRouter = router({
         }
         await db.deleteConversation(input.id);
         return { success: true };
+      }),
+
+    // Set agent for conversation
+    setAgent: protectedProcedure
+      .input(z.object({ id: z.number(), agentId: z.number().nullable(), orgSlug: z.string() }))
+      .mutation(async ({ ctx, input }) => {
+        const conversation = await db.getConversationById(input.id);
+        if (!conversation || conversation.userId !== ctx.user.id || conversation.orgSlug !== input.orgSlug) {
+          throw new Error("Conversation not found or access denied");
+        }
+        await db.updateConversation(input.id, { agentId: input.agentId ?? undefined });
+        return { ok: true };
       }),
   }),
 
@@ -282,7 +307,11 @@ export const appRouter = router({
         if (!agent) {
           throw new TRPCError({ code: 'NOT_FOUND', message: 'Agent not found' });
         }
-        return agent;
+        // Find or create KB collection for this agent
+        const name = `agent-${agent.id}`;
+        const collections = await db.getCollectionsByOrg(agent.orgSlug as string);
+        const kb = collections.find(c => c.name === name);
+        return { ...agent, kbCollectionId: kb?.id ?? null };
       }),
 
     // Create new agent
@@ -483,74 +512,74 @@ export const appRouter = router({
     upload: protectedProcedure
       .input(z.object({
         name: z.string(),
-        content: z.string(), // base64
+        content: z.string(),
         mimeType: z.string(),
         collectionId: z.number().optional(),
         conversationId: z.number().optional(),
-        orgSlug: z.string(),
+        orgSlug: z.string()
       }))
       .mutation(async ({ input }) => {
-        // If no collectionId but conversationId provided, create/get conversation collection
+        // Collection target: explicit OR from conversation
         let collectionId = input.collectionId;
         if (!collectionId && input.conversationId) {
-          const collectionName = `conversation-${input.conversationId}`;
-          // Check if collection exists
-          const existingCollections = await db.getCollectionsByOrg(input.orgSlug);
-          const existingCollection = existingCollections.find((c: { name: string }) => c.name === collectionName);
-          
-          if (existingCollection) {
-            collectionId = existingCollection.id;
-          } else {
-            // Create new collection for this conversation
-            collectionId = await db.createCollection({
-              name: collectionName,
-              description: `Documents for conversation ${input.conversationId}`,
-              orgSlug: input.orgSlug,
-            });
-          }
+          const name = `conversation-${input.conversationId}`;
+          const existing = (await db.getCollectionsByOrg(input.orgSlug)).find(c => c.name === name);
+          collectionId = existing?.id ?? await db.createCollection({
+            name, description: `Documents for conversation ${input.conversationId}`, orgSlug: input.orgSlug
+          });
         }
-        
-        // Check file limit per collection (20 files max)
+
+        // Limit per collection
         if (collectionId) {
           const existingDocs = await db.getDocumentsByCollection(collectionId);
-          if (existingDocs.length >= 20) {
-            throw new TRPCError({ 
-              code: 'BAD_REQUEST', 
-              message: 'Maximum 20 files per collection. Please delete some files or create a new collection.' 
-            });
+          if (existingDocs.length >= ENV.maxFilesPerCollection) {
+            throw new TRPCError({ code: 'BAD_REQUEST', message: `Maximum ${ENV.maxFilesPerCollection} files per collection.` });
           }
         }
-        
-        // Upload to S3
-        const fileKey = `${input.orgSlug}/documents/${Date.now()}-${input.name}`;
-        const { url } = await storagePut(fileKey, Buffer.from(input.content, 'base64'), input.mimeType);
 
-        // Create document record
+        // Storage (keep original file URL)
+        const { url } = await storagePut(
+          `orgs/${input.orgSlug}/uploads/${Date.now()}-${input.name}`,
+          Buffer.from(input.content, 'base64'),
+          input.mimeType
+        );
+
+        // Initial status (queue or inline)
+        const initialStatus = ENV.ragIngestMode === 'queue' ? "queued" : "processing";
         const documentId = await db.createDocument({
           name: input.name,
           mimeType: input.mimeType,
           contentUrl: url,
-          collectionId: input.collectionId,
+          collectionId: collectionId ?? undefined,
           orgSlug: input.orgSlug,
-          status: "processing",
+          status: initialStatus
         });
 
-        // Process document asynchronously (in background)
-        // For now, we'll process it synchronously
-        try {
-          await rag.processDocument(documentId, input.content, input.mimeType);
-          await db.updateDocument(documentId, { status: "completed" });
-          return { id: documentId, status: "completed" as const };
-        } catch (error) {
-          console.error(`Document processing failed for ID ${documentId}:`, error);
-          await db.updateDocument(documentId, { status: "failed" });
-          // Don't throw - return success with failed status so UI can show the document
-          return { 
-            id: documentId, 
-            status: "failed" as const,
-            error: error instanceof Error ? error.message : "Unknown error"
-          };
+        // INGEST: queue with retries and backoff
+        if (ENV.ragIngestMode === 'queue') {
+          await ragQueue.add(
+            'ingest',
+            { documentId, content: input.content, mimeType: input.mimeType },
+            {
+              attempts: 5,
+              backoff: { type: 'exponential', delay: 2000 },
+              removeOnComplete: true,
+              removeOnFail: false
+            }
+          );
+          logger.info("documents.upload.queued", { documentId, collectionId });
+        } else {
+          try {
+            await rag.processDocument(documentId, input.content, input.mimeType);
+            await db.updateDocument(documentId, { status: "completed" });
+            logger.info("documents.upload.completed", { documentId, collectionId, mode: "inline" });
+          } catch (error: any) {
+            await db.updateDocument(documentId, { status: "failed" });
+            logger.error("documents.upload.failed", { documentId, error: error?.message || String(error) });
+          }
         }
+
+        return { id: documentId };
       }),
 
     // Delete document
@@ -560,6 +589,20 @@ export const appRouter = router({
         await db.deleteDocument(input.id);
         return { success: true };
       }),
+
+    // Get document status
+    status: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        const d = await db.getDocumentById(input.id);
+        if (!d) throw new TRPCError({ code: 'NOT_FOUND', message: 'Document not found' });
+        return { id: d.id, status: d.status };
+      }),
+
+    // List documents by collection
+    listByCollection: protectedProcedure
+      .input(z.object({ collectionId: z.number() }))
+      .query(async ({ input }) => db.getDocumentsByCollection(input.collectionId)),
 
     // Search documents using RAG
     search: protectedProcedure
