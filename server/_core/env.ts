@@ -12,6 +12,12 @@ export const ENV = {
   maxFilesPerCollection: parseInt(process.env.MAX_FILES_PER_COLLECTION || "20", 10),
   autoAgentKB: (process.env.AUTO_AGENT_KB || "true").toLowerCase() === "true",
   
+  // Embeddings configuration
+  embeddingProvider: (process.env.EMBEDDING_PROVIDER || "forge") as "forge" | "openai",
+  embeddingBaseUrl: process.env.EMBEDDING_BASE_URL || "https://forge.manus.im/v1",
+  embeddingModel: process.env.EMBEDDING_MODEL || "text-embedding-3-small",
+  openaiApiKey: process.env.OPENAI_API_KEY || "",
+  
   // Queue and logs
   redisUrl: process.env.REDIS_URL || "redis://localhost:6379",
   ragIngestMode: (process.env.RAG_INGEST_MODE || "inline") as "queue" | "inline",

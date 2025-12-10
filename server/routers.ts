@@ -9,15 +9,7 @@ import * as db from "./db";
 import * as rag from "./rag";
 import * as stt from "./stt";
 import { storagePut } from "./storage";
-// ragQueue is optional - only used in queue mode
-let ragQueue: any = null;
-if (ENV.ragIngestMode === 'queue') {
-  try {
-    ragQueue = require("./ragQueue").ragQueue;
-  } catch (err) {
-    console.warn("[routers] ragQueue not available, using inline mode");
-  }
-}
+import { getRagQueue } from "./ragQueue";
 import { logger } from "./_core/logger";
 import { ENV } from "./_core/env";
 
@@ -81,30 +73,40 @@ export const appRouter = router({
           console.log(`[Chat] Agent ${agent?.id} (${agent?.name}) - RAG enabled: ${agent?.enableRAG === 1}`);
           
           if (agent && agent.enableRAG === 1) {
-            const agentCollections = await db.getAgentCollections(agent.id);
-            let collectionIds = agentCollections.map(c => c.collectionId);
-            
-            // Also include conversation collection if it exists
-            const conversationCollectionName = `conversation-${conversation.id}`;
-            const allCollections = await db.getCollectionsByOrg(conversation.orgSlug);
-            const conversationCollection = allCollections.find((c: { name: string }) => c.name === conversationCollectionName);
-            if (conversationCollection) {
-              collectionIds.push(conversationCollection.id);
-            }
-            
-            console.log(`[Chat] Agent ${agent.id} has ${collectionIds.length} collections for RAG (including conversation)`);
-            
-            if (collectionIds.length > 0) {
-              // Search for relevant chunks
-              const relevantChunks = await rag.searchRelevantChunks(input.message, collectionIds, 5);
-              console.log(`[Chat] RAG found ${relevantChunks.length} relevant chunks for agent ${agent.id}, conversation ${input.conversationId}`);
+            try {
+              const agentCollections = await db.getAgentCollections(agent.id);
+              let collectionIds = agentCollections.map(c => c.collectionId);
               
-              if (relevantChunks.length > 0) {
-                ragContext = rag.buildRAGContext(relevantChunks);
-                console.log(`[Chat] RAG context built (${ragContext.length} chars)`);
+              // Also include conversation collection if it exists
+              const conversationCollectionName = `conversation-${conversation.id}`;
+              const allCollections = await db.getCollectionsByOrg(conversation.orgSlug);
+              const conversationCollection = allCollections.find((c: { name: string }) => c.name === conversationCollectionName);
+              if (conversationCollection) {
+                collectionIds.push(conversationCollection.id);
               }
-            } else {
-              console.log(`[Chat] Agent ${agent.id} has RAG ON but no collections linked`);
+              
+              console.log(`[Chat] Agent ${agent.id} has ${collectionIds.length} collections for RAG (including conversation)`);
+              
+              if (collectionIds.length > 0) {
+                // Search for relevant chunks
+                const relevantChunks = await rag.searchRelevantChunks(input.message, collectionIds, 5);
+                console.log(`[Chat] RAG found ${relevantChunks.length} relevant chunks for agent ${agent.id}, conversation ${input.conversationId}`);
+                
+                if (relevantChunks.length > 0) {
+                  ragContext = rag.buildRAGContext(relevantChunks);
+                  console.log(`[Chat] RAG context built (${ragContext.length} chars)`);
+                }
+              } else {
+                console.log(`[Chat] Agent ${agent.id} has RAG ON but no collections linked`);
+              }
+            } catch (error) {
+              logger.error("chat.rag.failed", {
+                agentId: agent.id,
+                conversationId: input.conversationId,
+                error: error instanceof Error ? error.message : String(error),
+              });
+              console.error(`[Chat] RAG failed for agent ${agent.id}:`, error);
+              // Continue without RAG context
             }
           }
         }
@@ -555,20 +557,48 @@ export const appRouter = router({
           status: initialStatus
         });
 
-        // INGEST: queue with retries and backoff
+        // INGEST: queue with retries and backoff (if queue mode and queue available)
         if (ENV.ragIngestMode === 'queue') {
-          await ragQueue.add(
-            'ingest',
-            { documentId, content: input.content, mimeType: input.mimeType },
-            {
-              attempts: 5,
-              backoff: { type: 'exponential', delay: 2000 },
-              removeOnComplete: true,
-              removeOnFail: false
+          const queue = getRagQueue();
+          if (queue) {
+            try {
+              await queue.add(
+                'ingest',
+                { documentId, content: input.content, mimeType: input.mimeType },
+                {
+                  attempts: 5,
+                  backoff: { type: 'exponential', delay: 2000 },
+                  removeOnComplete: true,
+                  removeOnFail: false
+                }
+              );
+              logger.info("documents.upload.queued", { documentId, collectionId });
+            } catch (error) {
+              // Queue failed, fall back to inline
+              logger.warn("documents.upload.queue_failed_fallback_inline", { documentId, error: error instanceof Error ? error.message : String(error) });
+              try {
+                await rag.processDocument(documentId, input.content, input.mimeType);
+                await db.updateDocument(documentId, { status: "completed" });
+                logger.info("documents.upload.completed", { documentId, collectionId, mode: "inline_fallback" });
+              } catch (inlineError: any) {
+                await db.updateDocument(documentId, { status: "failed" });
+                logger.error("documents.upload.failed", { documentId, error: inlineError?.message || String(inlineError) });
+              }
             }
-          );
-          logger.info("documents.upload.queued", { documentId, collectionId });
+          } else {
+            // Queue not available, use inline
+            logger.info("documents.upload.inline_mode", { documentId, reason: "queue_not_available" });
+            try {
+              await rag.processDocument(documentId, input.content, input.mimeType);
+              await db.updateDocument(documentId, { status: "completed" });
+              logger.info("documents.upload.completed", { documentId, collectionId, mode: "inline" });
+            } catch (error: any) {
+              await db.updateDocument(documentId, { status: "failed" });
+              logger.error("documents.upload.failed", { documentId, error: error?.message || String(error) });
+            }
+          }
         } else {
+          // Inline mode
           try {
             await rag.processDocument(documentId, input.content, input.mimeType);
             await db.updateDocument(documentId, { status: "completed" });

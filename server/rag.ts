@@ -6,6 +6,8 @@
 import { invokeLLM } from "./_core/llm";
 import * as db from "./db";
 import { ENV } from "./_core/env";
+import { generateEmbeddings } from "./_core/embeddings";
+import { logger } from "./_core/logger";
 // Lazy load heavy dependencies to reduce memory usage during startup
 
 /**
@@ -62,38 +64,34 @@ export function chunkText(text: string, chunkSize: number = 500, overlap: number
 }
 
 /**
- * Generate embeddings for text using OpenAI Embeddings API
+ * Generate embeddings for text using unified embeddings provider
  * Returns a vector (array of numbers)
+ * Includes retry logic for transient failures
  */
 export async function generateEmbedding(text: string): Promise<number[]> {
-  try {
-    // Use Manus Forge API for embeddings
-    const apiUrl = ENV.forgeApiUrl && ENV.forgeApiUrl.trim().length > 0
-      ? `${ENV.forgeApiUrl.replace(/\/$/, "")}/v1/embeddings`
-      : "https://forge.manus.im/v1/embeddings";
+  const maxRetries = 2;
+  let lastError: Error | null = null;
 
-    const response = await fetch(apiUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${ENV.forgeApiKey}`,
-      },
-      body: JSON.stringify({
-        model: "text-embedding-3-small",
-        input: text,
-      }),
-    });
-
-    if (!response.ok) {
-      const error = await response.text();
-      throw new Error(`Embeddings API error: ${response.status} ${error}`);
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const embeddings = await generateEmbeddings([text]);
+      return embeddings[0];
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      logger.warn("rag.embedding.retry", {
+        attempt: attempt + 1,
+        maxRetries: maxRetries + 1,
+        error: lastError.message,
+      });
+      
+      // Wait before retry (exponential backoff)
+      if (attempt < maxRetries) {
+        await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
+      }
     }
-
-    const data = await response.json();
-    return data.data[0].embedding;
-  } catch (error) {
-    throw new Error(`Failed to generate embedding: ${error instanceof Error ? error.message : String(error)}`);
   }
+
+  throw new Error(`Failed to generate embedding after ${maxRetries + 1} attempts: ${lastError?.message}`);
 }
 
 /**
