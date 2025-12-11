@@ -500,3 +500,9 @@ NOTA: Upload individual por agente foi simplificado. Usuários podem enviar docu
 - [ ] Teste A: /agents/default → upload TXT → completed instantâneo
 - [ ] Teste B: Chat → upload TXT → badge completed
 - [ ] Validar logs: documents.upload.started, completed_short_circuit
+
+## 🚨 CRÍTICO - Correção de imports (bloqueador)
+- [x] Corrigir import em stt.ts (server/storage → server/_core/storage)
+- [x] Corrigir import em storage.ts (_core/_core/env → ./env)
+- [x] Verificar servidor roda sem erros
+- [x] Testar upload com modo diagnóstico

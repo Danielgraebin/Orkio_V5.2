@@ -44,6 +44,13 @@ async function startServer() {
     const h = await health();
     res.status(h.ok ? 200 : 503).json(h);
   });
+  
+  // Test upload endpoint (TEMPORARY - DELETE AFTER VALIDATION)
+  app.post("/api/test-upload", async (req, res) => {
+    const { testUpload } = await import("../test-upload-endpoint.js");
+    const result = await testUpload();
+    res.status(result.success ? 200 : 500).json(result);
+  });
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
   // tRPC API

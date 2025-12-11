@@ -1,7 +1,18 @@
 import { ENV } from "./_core/env";
 
 export async function health() {
-  const out: any = { ok: true, storage: "unknown", embeddings: "unknown" };
+  const out: any = { 
+    ok: true, 
+    storage: "unknown", 
+    embeddings: "unknown",
+    env: {
+      storageMode: ENV.storageMode,
+      forceStorageLocal: ENV.forceStorageLocal,
+      debugUploadShortCircuit: ENV.debugUploadShortCircuit,
+      ragIngestMode: ENV.ragIngestMode,
+      uploadMaxMB: ENV.uploadMaxMB,
+    }
+  };
 
   // Storage "ping" - check if storage API is reachable
   try {
