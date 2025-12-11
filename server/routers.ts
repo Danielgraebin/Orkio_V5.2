@@ -581,7 +581,17 @@ export const appRouter = router({
               message: `File size (${fileSizeMB.toFixed(2)} MB) exceeds maximum allowed size of ${ENV.uploadMaxMB} MB.` 
             });
           }
-          logger.info("documents.upload.start", { name: input.name, sizeMB: fileSizeMB.toFixed(2), mimeType });
+          // Enhanced observability logs
+          logger.info("documents.upload.started", {
+            name: input.name,
+            sizeMB: fileSizeMB.toFixed(2),
+            mimeType,
+            hasOrg: !!input.orgSlug,
+            hasAgentId: !!input.agentId,
+            hasConversationId: !!input.conversationId,
+            hasCollectionId: !!input.collectionId,
+            hasContent: !!base64Content,
+          });
 
           // Collection target: explicit OR from agentId OR from conversation
           let collectionId = input.collectionId;

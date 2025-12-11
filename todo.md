@@ -506,3 +506,12 @@ NOTA: Upload individual por agente foi simplificado. Usuários podem enviar docu
 - [x] Corrigir import em storage.ts (_core/_core/env → ./env)
 - [x] Verificar servidor roda sem erros
 - [x] Testar upload com modo diagnóstico
+
+## 🔵 PATCH 005E (UI WIRING + PRODUÇÃO) - Garantir fiação frontend → backend
+- [x] Verificar cliente tRPC único em main.tsx (sem provedores duplicados)
+- [x] AgentsManager envia agentId (não collectionId) ✓ já implementado
+- [x] Chat envia conversationId ✓ já implementado
+- [x] Adicionar logs observabilidade (hasOrg, hasAgentId, hasConversationId, hasContent)
+- [x] Criar checklist de ENV para produção
+- [ ] Teste A: /agents/default → upload TXT → logs started + completed_short_circuit
+- [ ] Teste B: Chat → upload TXT → logs started + completed_short_circuit
