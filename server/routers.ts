@@ -8,7 +8,7 @@ import { invokeLLM } from "./_core/llm";
 import * as db from "./db";
 import * as rag from "./rag";
 import * as stt from "./stt";
-import { storagePut } from "./storage";
+import { storagePut } from "./_core/storage";
 import { getRagQueue } from "./ragQueue";
 import { logger } from "./_core/logger";
 import { ENV } from "./_core/env";
@@ -555,16 +555,24 @@ export const appRouter = router({
     upload: protectedProcedure
       .input(z.object({
         name: z.string(),
-        content: z.string(),
-        mimeType: z.string(),
+        content: z.string().optional(),
+        base64: z.string().optional(),
+        mimeType: z.string().optional(),
+        mime: z.string().optional(),
         collectionId: z.number().optional(),
         conversationId: z.number().optional(),
         orgSlug: z.string()
       }))
       .mutation(async ({ input }) => {
         try {
+          // Field tolerance: accept both naming conventions
+          const mimeType = input.mimeType ?? input.mime ?? "application/octet-stream";
+          const base64Content = input.content ?? input.base64;
+          if (!base64Content) {
+            throw new TRPCError({ code: 'BAD_REQUEST', message: 'Missing file content (content or base64 field required)' });
+          }
           // Validate file size (base64 content)
-          const fileSizeBytes = Buffer.from(input.content, 'base64').length;
+          const fileSizeBytes = Buffer.from(base64Content, 'base64').length;
           const fileSizeMB = fileSizeBytes / (1024 * 1024);
           if (fileSizeMB > ENV.uploadMaxMB) {
             throw new TRPCError({ 
@@ -572,7 +580,7 @@ export const appRouter = router({
               message: `File size (${fileSizeMB.toFixed(2)} MB) exceeds maximum allowed size of ${ENV.uploadMaxMB} MB.` 
             });
           }
-          logger.info("documents.upload.start", { name: input.name, sizeMB: fileSizeMB.toFixed(2), mimeType: input.mimeType });
+          logger.info("documents.upload.start", { name: input.name, sizeMB: fileSizeMB.toFixed(2), mimeType });
 
           // Collection target: explicit OR from conversation
           let collectionId = input.collectionId;
@@ -598,8 +606,8 @@ export const appRouter = router({
             const result = await withTimeout(
               storagePut(
                 `orgs/${input.orgSlug}/uploads/${Date.now()}-${input.name}`,
-                Buffer.from(input.content, 'base64'),
-                input.mimeType
+                Buffer.from(base64Content, 'base64'),
+                mimeType
               ),
               20000,
               "storagePut"
@@ -648,7 +656,7 @@ export const appRouter = router({
                 logger.warn("documents.upload.queue_failed_fallback_inline", { documentId, error: error instanceof Error ? error.message : String(error) });
                 try {
                   await withTimeout(
-                    rag.processDocument(documentId, input.content, input.mimeType),
+                    rag.processDocument(documentId, base64Content, mimeType),
                     30000,
                     "ingest"
                   );
@@ -664,7 +672,7 @@ export const appRouter = router({
               logger.info("documents.upload.inline_mode", { documentId, reason: "queue_not_available" });
               try {
                 await withTimeout(
-                  rag.processDocument(documentId, input.content, input.mimeType),
+                  rag.processDocument(documentId, base64Content, mimeType),
                   30000,
                   "ingest"
                 );
@@ -679,7 +687,7 @@ export const appRouter = router({
             // Inline mode
             try {
               await withTimeout(
-                rag.processDocument(documentId, input.content, input.mimeType),
+                rag.processDocument(documentId, base64Content, mimeType),
                 30000,
                 "ingest"
               );

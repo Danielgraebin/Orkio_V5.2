@@ -5,16 +5,28 @@ import superjson from "superjson";
 
 export const trpc = createTRPCReact<AppRouter>();
 
-function makeBatchErrorEnvelope(message: string, code = "INTERNAL_SERVER_ERROR") {
-  // tRPC batch: array of items { error: { json: { message, code }, meta? } }
-  return [
-    {
-      error: {
-        json: { message, code },
-        meta: {},
-      },
+function extractBatchIds(body: any): (string | number)[] {
+  try {
+    if (typeof body === "string") {
+      const parsed = JSON.parse(body);
+      if (Array.isArray(parsed)) {
+        return parsed.map((item, idx) => item?.id ?? idx);
+      }
+    }
+  } catch {
+    // ignore parse errors
+  }
+  return [0]; // fallback: single item
+}
+
+function makeBatchErrorEnvelope(ids: (string | number)[], message: string, code = "INTERNAL_SERVER_ERROR") {
+  return ids.map((id) => ({
+    id,
+    error: {
+      json: { message, code, data: { code, httpStatus: 500 } },
+      meta: {},
     },
-  ];
+  }));
 }
 
 export function createTRPCClientBase() {
@@ -33,13 +45,16 @@ export function createTRPCClientBase() {
             const ct = res.headers.get("content-type") || "";
             const looksJson = ct.includes("application/json");
 
-            // If not JSON or 5xx, return batch error envelope
+            // Extract batch IDs from request body
+            const ids = extractBatchIds(init?.body);
+
+            // If not JSON or 5xx, return batch error envelope with correct IDs
             if (!looksJson || res.status >= 500) {
               const statusMsg =
                 res.status >= 500
                   ? `Service Unavailable (${res.status})`
                   : "Invalid response from server";
-              return new Response(JSON.stringify(makeBatchErrorEnvelope(statusMsg)), {
+              return new Response(JSON.stringify(makeBatchErrorEnvelope(ids, statusMsg)), {
                 status: 200,
                 headers: { "content-type": "application/json" },
               });
@@ -48,7 +63,8 @@ export function createTRPCClientBase() {
             return res;
           } catch (e: any) {
             const msg = e?.message || "Network error";
-            return new Response(JSON.stringify(makeBatchErrorEnvelope(msg)), {
+            const ids = extractBatchIds(init?.body);
+            return new Response(JSON.stringify(makeBatchErrorEnvelope(ids, msg)), {
               status: 200,
               headers: { "content-type": "application/json" },
             });

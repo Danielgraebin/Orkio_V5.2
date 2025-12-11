@@ -1,7 +1,7 @@
 // Preconfigured storage helpers for Manus WebDev templates
 // Uses the Biz-provided storage proxy (Authorization: Bearer <token>)
 
-import { ENV } from "./_core/env";
+import { ENV } from "./env";
 import fs from "fs";
 import path from "path";
 

@@ -480,3 +480,14 @@ NOTA: Upload individual por agente foi simplificado. Usuários podem enviar docu
 - [x] Polling automático de status no Chat
 - [x] Aba Knowledge Base no AgentsManager
 - [ ] Testes de aceite completos
+
+## 🔥 PATCH 005C (RECONCILIAÇÃO) - Validação e ajustes finais
+- [x] Verificar estrutura _core (env.ts, logger.ts, storage.ts)
+- [x] Adicionar tolerância de campos no upload (mimeType/mime, content/base64)
+- [x] Validar tRPC client extrai IDs do batch corretamente
+- [ ] CA-1: Chat → upload TXT 1KB → badge completed
+- [ ] CA-2: Chat/Admin → upload PDF 1-5MB → completed
+- [ ] CA-3: STORAGE_MODE=local → upload continua sem provider externo
+- [ ] CA-4: Zero toasts "Unexpected token" ou "Unable to transform"
+- [ ] CA-5: /agents/:orgSlug → aba KB funcional
+- [ ] CA-6: /api/health → JSON válido (200/503)

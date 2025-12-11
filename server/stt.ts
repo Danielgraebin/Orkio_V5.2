@@ -4,7 +4,7 @@
  */
 
 import { transcribeAudio } from "./_core/voiceTranscription";
-import { storagePut } from "./storage";
+import { storagePut } from "./_core/storage";
 
 /**
  * Transcribe audio file to text
