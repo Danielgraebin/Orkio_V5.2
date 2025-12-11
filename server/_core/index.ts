@@ -8,6 +8,7 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { ENV } from "./env";
+import { health } from "../health";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -35,6 +36,11 @@ async function startServer() {
   const bodyLimit = `${ENV.requestBodyLimitMB}mb`;
   app.use(express.json({ limit: bodyLimit }));
   app.use(express.urlencoded({ limit: bodyLimit, extended: true }));
+  // Health check endpoint
+  app.get("/api/health", async (req, res) => {
+    const h = await health();
+    res.status(h.ok ? 200 : 503).json(h);
+  });
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
   // tRPC API

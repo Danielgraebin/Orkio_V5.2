@@ -94,9 +94,9 @@ export default function Chat() {
 
   // Upload document mutation
   const uploadDocument = trpc.documents.upload.useMutation({
-    onSuccess: (data) => {
+    onSuccess: (data, variables) => {
       toast.success("Document uploaded successfully");
-      setUploadedFiles((prev) => [...prev, { id: data.id, name: "Document", status: "queued" }]);
+      setUploadedFiles((prev) => [...prev, { id: data.id, name: variables.name, status: data.status || "processing" }]);
     },
     onError: (error) => {
       toast.error(`Upload failed: ${error.message}`);
@@ -312,6 +312,31 @@ export default function Chat() {
             {/* Message Input */}
             <div className="p-4 border-t border-border bg-card">
               <div className="max-w-3xl mx-auto space-y-2">
+                {/* Uploaded Files Status */}
+                {uploadedFiles.length > 0 && (
+                  <div className="mb-2 flex flex-wrap gap-2">
+                    {uploadedFiles.map((f) => (
+                      <span
+                        key={f.id}
+                        className="px-2 py-1 text-xs rounded bg-muted flex items-center gap-1"
+                      >
+                        {f.name} · {f.status}
+                      </span>
+                    ))}
+                    {/* Show refresh button when all uploads are done */}
+                    {uploadedFiles.every((f) =>
+                      ["completed", "failed"].includes(f.status)
+                    ) && (
+                      <button
+                        className="text-xs underline text-muted-foreground hover:text-foreground"
+                        onClick={() => refetchConversation()}
+                        title="Reload messages/context"
+                      >
+                        refresh context
+                      </button>
+                    )}
+                  </div>
+                )}
                 {/* Agent Selection */}
                 {agents && agents.length > 0 && (
                   <Select

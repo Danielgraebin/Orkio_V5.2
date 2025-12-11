@@ -82,14 +82,28 @@ export async function storagePut(
     body: formData,
   });
 
+  // Check content-type to ensure JSON response
+  const ct = response.headers.get("content-type") || "";
+  const isJson = ct.includes("application/json");
+
   if (!response.ok) {
-    const message = await response.text().catch(() => response.statusText);
+    const body = isJson
+      ? await response.json().catch(() => ({}))
+      : { raw: await response.text().catch(() => "") };
+    const errorMsg = isJson
+      ? body?.message || body?.error || "Storage upload failed"
+      : "Storage returned non-JSON response";
     throw new Error(
-      `Storage upload failed (${response.status} ${response.statusText}): ${message}`
+      `storagePut ${response.status}: ${errorMsg}`
     );
   }
-  const url = (await response.json()).url;
-  return { key, url };
+
+  const responseData: any = isJson ? await response.json() : null;
+  if (!responseData?.url) {
+    throw new Error("storagePut missing url field in response");
+  }
+
+  return { key, url: responseData.url as string };
 }
 
 export async function storageGet(relKey: string): Promise<{ key: string; url: string; }> {
