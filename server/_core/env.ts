@@ -24,4 +24,8 @@ export const ENV = {
   redisUrl: process.env.REDIS_URL || "redis://localhost:6379",
   ragIngestMode: (process.env.RAG_INGEST_MODE || "inline") as "queue" | "inline",
   logLevel: process.env.LOG_LEVEL || "info",
+  
+  // Storage configuration
+  storageMode: (process.env.STORAGE_MODE || "local").toLowerCase() as "local" | "forge",
+  uploadDir: process.env.UPLOAD_DIR || "./uploads",
 };

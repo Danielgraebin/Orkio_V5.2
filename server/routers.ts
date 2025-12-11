@@ -334,6 +334,29 @@ export const appRouter = router({
         return { ...agent, kbCollectionId: kb?.id ?? null };
       }),
 
+    // Ensure KB collection exists for agent (create if needed)
+    ensureKb: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        const agent = await db.getAgentById(input.id);
+        if (!agent) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'Agent not found' });
+        }
+        const name = `agent-${agent.id}`;
+        const collections = await db.getCollectionsByOrg(agent.orgSlug as string);
+        let kb = collections.find(c => c.name === name);
+        if (!kb) {
+          const kbId = await db.createCollection({
+            name,
+            description: `Default KB for agent ${agent.id}`,
+            orgSlug: agent.orgSlug as string,
+          });
+          kb = await db.getCollectionById(kbId);
+          logger.info("agents.ensureKb.created", { agentId: agent.id, collectionId: kbId });
+        }
+        return { kbCollectionId: kb!.id };
+      }),
+
     // Create new agent
     create: protectedProcedure
       .input(z.object({

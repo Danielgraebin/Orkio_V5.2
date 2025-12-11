@@ -141,6 +141,33 @@ export default function Chat() {
     }
   }, [conversationData]);
 
+  // Poll upload status for queued/processing files
+  const utils = trpc.useUtils();
+  useEffect(() => {
+    if (!uploadedFiles.some(f => ["queued", "processing"].includes(f.status))) return;
+    let mounted = true;
+    const t = setInterval(async () => {
+      if (!mounted) return;
+      const updates = await Promise.all(
+        uploadedFiles.map(async (f) => {
+          if (!f.id || !["queued", "processing"].includes(f.status)) return f;
+          try {
+            const s = await utils.documents.status.fetch({ id: f.id });
+            return { ...f, status: s.status };
+          } catch {
+            return f;
+          }
+        })
+      );
+      setUploadedFiles(updates);
+    }, 2500);
+    return () => {
+      mounted = false;
+      clearInterval(t);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [uploadedFiles.map((f) => f.status).join("|")]);
+
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });

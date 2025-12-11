@@ -473,3 +473,10 @@ NOTA: Upload individual por agente foi simplificado. Usuários podem enviar docu
 - [ ] Cenário B: KB do agente (upload no Admin → chat usa)
 - [ ] Cenário C: Limite configurável (MAX_FILES_PER_COLLECTION)
 - [ ] Cenário D: Fila/observabilidade (worker parado → queued → iniciar → completed)
+
+## 🔥 PATCH 001-005 (CONSOLIDADO) - Completar itens faltantes
+- [x] Storage com failover local (STORAGE_MODE=local|forge)
+- [x] Servir arquivos estáticos em /uploads
+- [x] Polling automático de status no Chat
+- [x] Aba Knowledge Base no AgentsManager
+- [ ] Testes de aceite completos

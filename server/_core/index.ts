@@ -9,6 +9,7 @@ import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { ENV } from "./env";
 import { health } from "../health";
+import path from "path";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -36,6 +37,8 @@ async function startServer() {
   const bodyLimit = `${ENV.requestBodyLimitMB}mb`;
   app.use(express.json({ limit: bodyLimit }));
   app.use(express.urlencoded({ limit: bodyLimit, extended: true }));
+  // Serve static uploads
+  app.use("/uploads", express.static(path.resolve(ENV.uploadDir), { fallthrough: false }));
   // Health check endpoint
   app.get("/api/health", async (req, res) => {
     const h = await health();

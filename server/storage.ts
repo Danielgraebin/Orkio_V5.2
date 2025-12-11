@@ -1,7 +1,9 @@
 // Preconfigured storage helpers for Manus WebDev templates
 // Uses the Biz-provided storage proxy (Authorization: Bearer <token>)
 
-import { ENV } from './_core/env';
+import { ENV } from "./_core/env";
+import fs from "fs";
+import path from "path";
 
 type StorageConfig = { baseUrl: string; apiKey: string };
 
@@ -67,43 +69,52 @@ function buildAuthHeaders(apiKey: string): HeadersInit {
   return { Authorization: `Bearer ${apiKey}` };
 }
 
+function ensureDir(p: string) { if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true }); }
+
+async function putLocal(rel: string, buf: Buffer) {
+  const root = path.resolve(ENV.uploadDir);
+  ensureDir(root);
+  const abs = path.join(root, rel);
+  ensureDir(path.dirname(abs));
+  await fs.promises.writeFile(abs, buf);
+  return { url: `/uploads/${rel}` };
+}
+
+async function putForge(rel: string, buf: Buffer, mime: string) {
+  const base = (ENV.forgeApiUrl || "").replace(/\/$/, "");
+  const res = await fetch(`${base}/storage/upload`, {
+    method: "POST",
+    headers: {
+      "Content-Type": mime || "application/octet-stream",
+      Authorization: `Bearer ${ENV.forgeApiKey}`,
+      "X-File-Path": rel,
+    },
+    body: buf as any,
+  });
+  const ct = res.headers.get("content-type") || "";
+  const isJson = ct.includes("application/json");
+  if (!res.ok) {
+    const raw = isJson ? await res.json().catch(()=>({})) : { raw: await res.text().catch(()=> "") };
+    throw new Error(`forge ${res.status} ${isJson ? (raw?.message||"error") : "non-JSON"}`);
+  }
+  const jsonData = isJson ? await res.json() : null;
+  if (!jsonData?.url) throw new Error("forge: missing url");
+  return { url: jsonData.url as string };
+}
+
 export async function storagePut(
   relKey: string,
   data: Buffer | Uint8Array | string,
   contentType = "application/octet-stream"
 ): Promise<{ key: string; url: string }> {
-  const { baseUrl, apiKey } = getStorageConfig();
   const key = normalizeKey(relKey);
-  const uploadUrl = buildUploadUrl(baseUrl, key);
-  const formData = toFormData(data, contentType, key.split("/").pop() ?? key);
-  const response = await fetch(uploadUrl, {
-    method: "POST",
-    headers: buildAuthHeaders(apiKey),
-    body: formData,
-  });
-
-  // Check content-type to ensure JSON response
-  const ct = response.headers.get("content-type") || "";
-  const isJson = ct.includes("application/json");
-
-  if (!response.ok) {
-    const body = isJson
-      ? await response.json().catch(() => ({}))
-      : { raw: await response.text().catch(() => "") };
-    const errorMsg = isJson
-      ? body?.message || body?.error || "Storage upload failed"
-      : "Storage returned non-JSON response";
-    throw new Error(
-      `storagePut ${response.status}: ${errorMsg}`
-    );
+  const buf = typeof data === "string" ? Buffer.from(data) : Buffer.from(data as any);
+  
+  if (ENV.storageMode === "forge") {
+    try { return { key, ...await putForge(key, buf, contentType) }; }
+    catch { return { key, ...await putLocal(key, buf) }; } // failover
   }
-
-  const responseData: any = isJson ? await response.json() : null;
-  if (!responseData?.url) {
-    throw new Error("storagePut missing url field in response");
-  }
-
-  return { key, url: responseData.url as string };
+  return { key, ...await putLocal(key, buf) };
 }
 
 export async function storageGet(relKey: string): Promise<{ key: string; url: string; }> {
