@@ -5,16 +5,16 @@ import superjson from "superjson";
 
 export const trpc = createTRPCReact<AppRouter>();
 
-function safeJsonError(e: unknown) {
-  // Returns a predictable object for toast/error
-  return {
-    message:
-      e instanceof Error
-        ? e.message
-        : typeof e === "string"
-        ? e
-        : "Unexpected network error",
-  };
+function makeBatchErrorEnvelope(message: string, code = "INTERNAL_SERVER_ERROR") {
+  // tRPC batch: array of items { error: { json: { message, code }, meta? } }
+  return [
+    {
+      error: {
+        json: { message, code },
+        meta: {},
+      },
+    },
+  ];
 }
 
 export function createTRPCClientBase() {
@@ -23,7 +23,6 @@ export function createTRPCClientBase() {
       httpBatchLink({
         url: "/api/trpc",
         transformer: superjson,
-        // 🔹 Fetch that "sanitizes" non-JSON responses (e.g., 503 HTML from proxy)
         fetch: async (input, init) => {
           try {
             const res = await fetch(input, {
@@ -31,28 +30,25 @@ export function createTRPCClientBase() {
               credentials: "include",
             });
 
-            // If 502/503/504 or Content-Type not JSON → create TRPC-like error
             const ct = res.headers.get("content-type") || "";
-            const isJson = ct.includes("application/json");
-            if (!isJson || res.status >= 500) {
-              const text = await res.text().catch(() => "");
-              const msg =
+            const looksJson = ct.includes("application/json");
+
+            // If not JSON or 5xx, return batch error envelope
+            if (!looksJson || res.status >= 500) {
+              const statusMsg =
                 res.status >= 500
                   ? `Service Unavailable (${res.status})`
                   : "Invalid response from server";
-              // Simulate JSON response so tRPC client doesn't break with "Unexpected token…"
-              return new Response(
-                JSON.stringify({
-                  error: { code: "INTERNAL_SERVER_ERROR", message: msg, raw: text.slice(0, 200) },
-                }),
-                { status: 200, headers: { "content-type": "application/json" } }
-              );
+              return new Response(JSON.stringify(makeBatchErrorEnvelope(statusMsg)), {
+                status: 200,
+                headers: { "content-type": "application/json" },
+              });
             }
 
             return res;
-          } catch (e) {
-            // Network failures/fetch timeouts
-            return new Response(JSON.stringify({ error: safeJsonError(e) }), {
+          } catch (e: any) {
+            const msg = e?.message || "Network error";
+            return new Response(JSON.stringify(makeBatchErrorEnvelope(msg)), {
               status: 200,
               headers: { "content-type": "application/json" },
             });
