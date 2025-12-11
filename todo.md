@@ -491,3 +491,12 @@ NOTA: Upload individual por agente foi simplificado. Usuários podem enviar docu
 - [ ] CA-4: Zero toasts "Unexpected token" ou "Unable to transform"
 - [ ] CA-5: /agents/:orgSlug → aba KB funcional
 - [ ] CA-6: /api/health → JSON válido (200/503)
+
+## 🔥 PATCH 005D (HARDENING + ISOLAÇÃO) - Diagnóstico cirúrgico de upload
+- [x] Adicionar ENV toggles (forceStorageLocal, debugUploadShortCircuit)
+- [x] Atualizar storage.ts para respeitar FORCE_STORAGE_LOCAL
+- [x] Refatorar documents.upload com agentId e short-circuit
+- [x] AgentsManager enviar agentId no upload
+- [ ] Teste A: /agents/default → upload TXT → completed instantâneo
+- [ ] Teste B: Chat → upload TXT → badge completed
+- [ ] Validar logs: documents.upload.started, completed_short_circuit

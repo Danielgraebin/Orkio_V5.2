@@ -77,7 +77,7 @@ export default function AgentsManager() {
         name: file.name,
         content: (b64.split(",")[1] || b64),
         mimeType: file.type || "application/octet-stream",
-        collectionId: currKb as number,
+        agentId: agent.id,  // Force KB agent-{id}
         orgSlug,
       } as any);
     } catch (err: any) {

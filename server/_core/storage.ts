@@ -110,6 +110,11 @@ export async function storagePut(
   const key = normalizeKey(relKey);
   const buf = typeof data === "string" ? Buffer.from(data) : Buffer.from(data as any);
   
+  // Force local mode for diagnostics
+  if (ENV.forceStorageLocal) {
+    return { key, ...await putLocal(key, buf) };
+  }
+  
   if (ENV.storageMode === "forge") {
     try { return { key, ...await putForge(key, buf, contentType) }; }
     catch { return { key, ...await putLocal(key, buf) }; } // failover

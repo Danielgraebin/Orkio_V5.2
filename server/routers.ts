@@ -554,16 +554,17 @@ export const appRouter = router({
     // Upload and process document
     upload: protectedProcedure
       .input(z.object({
-        name: z.string(),
+        name: z.string().min(1),
         content: z.string().optional(),
         base64: z.string().optional(),
         mimeType: z.string().optional(),
         mime: z.string().optional(),
         collectionId: z.number().optional(),
         conversationId: z.number().optional(),
-        orgSlug: z.string()
+        agentId: z.number().optional(),  // NEW: when coming from AgentsManager
+        orgSlug: z.string().min(1)
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         try {
           // Field tolerance: accept both naming conventions
           const mimeType = input.mimeType ?? input.mime ?? "application/octet-stream";
@@ -582,8 +583,19 @@ export const appRouter = router({
           }
           logger.info("documents.upload.start", { name: input.name, sizeMB: fileSizeMB.toFixed(2), mimeType });
 
-          // Collection target: explicit OR from conversation
+          // Collection target: explicit OR from agentId OR from conversation
           let collectionId = input.collectionId;
+          
+          // Priority 1: agentId → ensure KB agent-{id}
+          if (!collectionId && input.agentId) {
+            const name = `agent-${input.agentId}`;
+            const existing = (await db.getCollectionsByOrg(input.orgSlug)).find(c => c.name === name);
+            collectionId = existing?.id ?? await db.createCollection({
+              name, description: `Default KB for agent ${input.agentId}`, orgSlug: input.orgSlug
+            });
+          }
+          
+          // Priority 2: conversationId → ensure conversation-{id}
           if (!collectionId && input.conversationId) {
             const name = `conversation-${input.conversationId}`;
             const existing = (await db.getCollectionsByOrg(input.orgSlug)).find(c => c.name === name);
@@ -624,16 +636,22 @@ export const appRouter = router({
             });
           }
 
-        // Initial status (queue or inline)
-        const initialStatus = ENV.ragIngestMode === 'queue' ? "queued" : "processing";
+        // Initial status (short-circuit or queue/inline)
+        const initialStatus = ENV.debugUploadShortCircuit ? "completed" : (ENV.ragIngestMode === 'queue' ? "queued" : "processing");
         const documentId = await db.createDocument({
           name: input.name,
-          mimeType: input.mimeType,
+          mimeType,
           contentUrl: url,
           collectionId: collectionId ?? undefined,
           orgSlug: input.orgSlug,
           status: initialStatus
         });
+        
+        // Short-circuit mode: skip RAG/embeddings for diagnostics
+        if (ENV.debugUploadShortCircuit) {
+          logger.info("documents.upload.completed_short_circuit", { documentId, url, agentId: input.agentId });
+          return { id: documentId, status: "completed" as const, url };
+        }
 
           // INGEST: queue with retries and backoff (if queue mode and queue available)
           if (ENV.ragIngestMode === 'queue') {

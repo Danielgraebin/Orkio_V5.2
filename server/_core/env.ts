@@ -28,4 +28,8 @@ export const ENV = {
   // Storage configuration
   storageMode: (process.env.STORAGE_MODE || "local").toLowerCase() as "local" | "forge",
   uploadDir: process.env.UPLOAD_DIR || "./uploads",
+  
+  // Diagnostic toggles
+  forceStorageLocal: (process.env.FORCE_STORAGE_LOCAL || "false").toLowerCase() === "true",
+  debugUploadShortCircuit: (process.env.DEBUG_UPLOAD_SHORT_CIRCUIT || "false").toLowerCase() === "true",
 };
