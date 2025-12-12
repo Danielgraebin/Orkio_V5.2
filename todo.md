@@ -515,3 +515,22 @@ NOTA: Upload individual por agente foi simplificado. Usuários podem enviar docu
 - [x] Criar checklist de ENV para produção
 - [ ] Teste A: /agents/default → upload TXT → logs started + completed_short_circuit
 - [ ] Teste B: Chat → upload TXT → logs started + completed_short_circuit
+
+## 🚀 PATCH 006 (DEPLOY RAILWAY+RENDER) - Deploy estável Docker+Nginx
+- [x] Criar server/Dockerfile (API)
+- [x] Criar client/Dockerfile (Frontend+Nginx)
+- [x] Criar client/nginx.conf.template
+- [x] Criar client/entrypoint.sh
+- [x] Criar docker-compose.yml (local/staging)
+- [x] Criar scripts de deploy automatizados (deploy-all.sh, deploy-railway.sh, deploy-render.sh)
+- [x] Criar script de testes de aceite (run-acceptance-tests.sh)
+- [x] Criar guia completo de deployment (DEPLOYMENT_GUIDE.md)
+- [ ] Testar local: docker compose build && up -d
+- [ ] Deploy Railway API com ENV diagnóstico
+- [ ] Deploy Render Frontend+Proxy
+- [ ] AT-DEPLOY-01: GET /api/health → JSON
+- [ ] AT-DEPLOY-02: Agents → KB upload .txt → completed + log
+- [ ] AT-DEPLOY-03: Chat → upload .txt → completed
+- [ ] AT-DEPLOY-04: Desligar short-circuit → upload PDF → completed
+- [ ] AT-DEPLOY-05: Nenhum "Unexpected token"/"Unable to transform"
+- [ ] AT-DEPLOY-06: Volumes persistem após restart

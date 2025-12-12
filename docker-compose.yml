@@ -1,0 +1,46 @@
+version: "3.9"
+
+services:
+  api:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    environment:
+      NODE_ENV: production
+      # ====== ENV CRÍTICAS ======
+      STORAGE_MODE: "local"
+      UPLOAD_DIR: "/app/uploads"
+      REQUEST_BODY_LIMIT_MB: "20"
+      UPLOAD_MAX_MB: "16"
+      RAG_INGEST_MODE: "inline"
+      # Diagnóstico inicial: ON → confirma upload/KB sem depender do RAG externo
+      FORCE_STORAGE_LOCAL: "true"
+      DEBUG_UPLOAD_SHORT_CIRCUIT: "true"
+      # Embeddings (se/quando ativar)
+      # EMBEDDING_PROVIDER: "openai"
+      # OPENAI_API_KEY: "..."
+      # EMBEDDING_MODEL: "text-embedding-3-small"
+      # ====== /ENV ======
+    volumes:
+      - uploads_data:/app/uploads
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 6
+
+  web:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    depends_on:
+      - api
+    ports:
+      - "80:80"
+    environment:
+      API_ORIGIN: "http://api:3000"
+    volumes:
+      - uploads_data:/app/uploads
+
+volumes:
+  uploads_data:
