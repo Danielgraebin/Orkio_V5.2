@@ -534,3 +534,15 @@ NOTA: Upload individual por agente foi simplificado. Usuários podem enviar docu
 - [ ] AT-DEPLOY-04: Desligar short-circuit → upload PDF → completed
 - [ ] AT-DEPLOY-05: Nenhum "Unexpected token"/"Unable to transform"
 - [ ] AT-DEPLOY-06: Volumes persistem após restart
+
+
+## PATCH 006E - Env em Runtime no Front (Render Deploy)
+
+- [ ] Criar client/public/config.js.template
+- [ ] Atualizar client/entrypoint.sh com envsubst
+- [ ] Criar client/src/lib/env.ts helper
+- [ ] Injetar <script src="/config.js"> no client/index.html
+- [ ] Atualizar Dockerfile.web para copiar config.js.template
+- [ ] Commit e push para GitHub
+- [ ] Configurar variáveis de ambiente no Render
+- [ ] Validar deploy sem TypeError: Invalid URL

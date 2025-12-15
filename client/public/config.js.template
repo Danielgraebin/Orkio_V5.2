@@ -1,0 +1,9 @@
+// public/config.js.template
+// Este arquivo vira /config.js em runtime (via entrypoint.sh + envsubst)
+window.__ENV = {
+  VITE_OAUTH_PORTAL_URL: "$VITE_OAUTH_PORTAL_URL",
+  VITE_APP_ID: "$VITE_APP_ID",
+  // Use API_ORIGIN sem VITE_ porque também pode ser usado pelo Nginx/proxy
+  VITE_API_ORIGIN: "$API_ORIGIN",
+  VITE_UPLOAD_MAX_MB: "$VITE_UPLOAD_MAX_MB"
+};
