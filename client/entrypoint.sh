@@ -5,7 +5,6 @@ set -e
 : "${API_ORIGIN:?API_ORIGIN not set}"
 
 # Gera /config.js com as variáveis do ambiente do Render
-# Observação: mantenha TODAS as vars que você usa no template na lista do envsubst
 envsubst '$VITE_OAUTH_PORTAL_URL $VITE_APP_ID $API_ORIGIN $VITE_UPLOAD_MAX_MB' \
   < /usr/share/nginx/html/config.js.template \
   > /usr/share/nginx/html/config.js
