@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: orkio-web
+    runtime: docker
+    dockerfilePath: ./client/Dockerfile
+    dockerContext: ./client
+    envVars:
+      - key: API_ORIGIN
+        value: https://orkio-api-production.up.railway.app
+    healthCheckPath: /
