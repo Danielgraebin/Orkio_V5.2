@@ -1,30 +1,54 @@
-server {
-  listen 80;
-  server_name _;
+worker_processes  1;
 
-  # Front estático (SPA)
-  root /usr/share/nginx/html;
-  index index.html;
+events { worker_connections 1024; }
 
-  # Proxy p/ API externa (Railway). Variável injetada: $API_ORIGIN
-  location /trpc {
-    proxy_pass $API_ORIGIN/trpc;
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-  }
+http {
+  include       /etc/nginx/mime.types;
+  default_type  application/octet-stream;
 
-  location /api {
-    proxy_pass $API_ORIGIN/api;
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-  }
+  resolver 1.1.1.1 8.8.8.8 ipv6=off valid=30s;
 
-  # Assets/SPA fallback
-  location / {
-    try_files $uri /index.html;
+  client_max_body_size 50m;
+  proxy_send_timeout   300s;
+  proxy_read_timeout   300s;
+  send_timeout         300s;
+
+  map "" $api_origin { default "$API_ORIGIN"; }
+
+  server {
+    listen 80;
+    server_name _;
+
+    root /usr/share/nginx/html;
+    index index.html;
+
+    # env runtime
+    location = /config.js {
+      add_header Cache-Control "no-store";
+      try_files /config.js =404;
+    }
+
+    # API REST
+    location /api/ {
+      proxy_http_version 1.1;
+      proxy_set_header Host              $host;
+      proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+      proxy_set_header X-Forwarded-Proto $scheme;
+      proxy_pass $api_origin$request_uri;
+    }
+
+    # tRPC
+    location /trpc/ {
+      proxy_http_version 1.1;
+      proxy_set_header Host              $host;
+      proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+      proxy_set_header X-Forwarded-Proto $scheme;
+      proxy_pass $api_origin$request_uri;
+    }
+
+    # SPA fallback
+    location / {
+      try_files $uri /index.html;
+    }
   }
 }

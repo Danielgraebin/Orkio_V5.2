@@ -29,8 +29,8 @@ WORKDIR /app
 # Copy built frontend (Vite outputs to dist/public per vite.config.ts)
 COPY --from=build /app/dist/public /usr/share/nginx/html
 
-# Copy nginx template and entrypoint from client folder
-COPY client/nginx.conf.template /etc/nginx/conf.d/default.conf.template
+# Copy nginx template (full nginx.conf) and entrypoint from client folder
+COPY client/nginx.conf.template /etc/nginx/nginx.conf.template
 COPY client/entrypoint.sh /entrypoint.sh
 
 # Copy config.js.template for runtime env injection
