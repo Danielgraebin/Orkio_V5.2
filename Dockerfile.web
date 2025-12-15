@@ -19,8 +19,8 @@ COPY vite.config.ts ./
 COPY tsconfig.json ./
 COPY components.json ./
 
-# Build the frontend
-RUN pnpm build
+# Build the frontend only (skip server build)
+RUN pnpm vite build
 
 # Stage 2: Nginx + template + entrypoint
 FROM nginx:1.25-alpine
