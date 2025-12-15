@@ -1,35 +1,39 @@
-# Stage 1: Build frontend (monorepo structure)
+# ---------- build ----------
 FROM node:20-alpine AS build
 WORKDIR /app
 
-# Copy root package files first
-COPY ../package.json ../pnpm-lock.yaml ./
-
-# Enable pnpm and install dependencies
+# copie somente o necessário primeiro para cachear dependências
+COPY package.json pnpm-lock.yaml ./
 RUN corepack enable && pnpm i --frozen-lockfile
 
-# Copy all source files
-COPY ../client ./client
-COPY ../shared ./shared
-COPY ../vite.config.ts ./
-COPY ../tsconfig.json ./
-COPY ../components.json ./
+# agora copie o restante do código do client
+COPY . .
 
-# Build the frontend
-WORKDIR /app/client
-RUN cd /app && pnpm build
+# se você usa Shadcn e tem components.json, ele já estará no contexto (client/)
+# se NÃO usa Shadcn, não há nada a fazer aqui
 
-# Stage 2: Nginx + template + entrypoint
-FROM nginx:1.25-alpine
-WORKDIR /app
+# build do front
+RUN pnpm build
 
-# Copy built frontend
-COPY --from=build /app/client/dist /usr/share/nginx/html
+# ---------- runtime ----------
+FROM nginx:1.25-alpine AS runtime
+WORKDIR /usr/share/nginx/html
 
-# Copy nginx template and entrypoint
-COPY nginx.conf.template /etc/nginx/conf.d/default.conf.template
-COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+# copie o build do Vite/Next (ajuste o caminho abaixo)
+# se seu build sai em "dist" (Vite):
+COPY --from=build /app/dist ./
+# se for Next com export estático (out):
+# COPY --from=build /app/out ./
 
+# copie o config.js gerado em runtime pelo entrypoint.sh (se você estiver usando esse mecanismo)
+# Dica: se o seu entrypoint gera /config.js, certifique-se de servi-lo na raiz do Nginx
+# (no seu nginx.conf.template já deve existir uma localização para /config.js)
+
+# opcional: nginx.conf customizado (se você tem)
+# COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+# porta padrão do nginx
 EXPOSE 80
-CMD ["/entrypoint.sh"]
+
+# nginx já vem com entrypoint/cmd apropriados
+
