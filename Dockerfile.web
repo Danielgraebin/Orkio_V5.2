@@ -26,8 +26,8 @@ RUN pnpm vite build
 FROM nginx:1.25-alpine
 WORKDIR /app
 
-# Copy built frontend
-COPY --from=build /app/client/dist /usr/share/nginx/html
+# Copy built frontend (Vite outputs to dist/public per vite.config.ts)
+COPY --from=build /app/dist/public /usr/share/nginx/html
 
 # Copy nginx template and entrypoint from client folder
 COPY client/nginx.conf.template /etc/nginx/conf.d/default.conf.template
