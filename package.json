@@ -10,7 +10,17 @@
     "check": "tsc --noEmit",
     "format": "prettier --write .",
     "test": "vitest run",
-    "db:push": "drizzle-kit generate && drizzle-kit migrate"
+    "db:push": "drizzle-kit generate && drizzle-kit migrate",
+"roteiros": {
+  "desenvolvedor": "NODE_ENV=development tsx watch server/_core/index.ts",
+  "construir": "vite build && esbuild server/_core/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
+  "começar": "NODE_ENV=production node dist/index.js",
+  "verificar": "tsc --noEmit",
+  "formatar": "mais bonito --escrever .",
+  "teste": "vitest run",
+  "db:push": "drizzle-kit generate && drizzle-kit migrate",
+  "build:front": "vite build"
+}
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.693.0",
