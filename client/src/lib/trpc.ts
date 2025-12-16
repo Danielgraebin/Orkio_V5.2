@@ -5,7 +5,7 @@ import type { AppRouter } from "../../../server/routers";
 import superjson from "superjson";
 
 // ⚠️ ajuste o caminho abaixo se seu runtimeEnv.ts estiver em outra pasta
-import { ENV } from "../_core/_essential/runtimeEnv";
+import { ENV } from "../_core/runtimeEnv";
 
 export const trpc = createTRPCReact<AppRouter>();
 
