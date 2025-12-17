@@ -1,0 +1,53 @@
+name: Deploy Orkio Front to GitHub Pages
+
+on:
+  push:
+    branches: ["main"]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Build (Vite)
+        env:
+          # ✅ IMPORTANTE: coloque aqui o nome EXATO do repositório
+          # Ex.: se o repo for "Orkio_V5.2", então BASE_PATH="/Orkio_V5.2/"
+          BASE_PATH: "/Orkio_V5.2/"
+        run: npm run build
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          # ✅ pasta gerada pelo Vite conforme vite.config.ts
+          path: dist/public
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+    environment:
+      name: github-pages
+    steps:
+      - name: Deploy
+        uses: actions/deploy-pages@v4
+
