@@ -1,99 +1,61 @@
-// client/src/lib/trpc.ts
-import { createTRPCReact } from "@trpc/react-query";
-import { httpBatchLink } from "@trpc/client";
-import type { AppRouter } from "../../../server/routers";
-import superjson from "superjson";
+import { createTRPCProxyClient, httpBatchLink } from "@trpc/client";
+import type { AppRouter } from "@shared/router";
 
-// ⚠️ ajuste o caminho abaixo se seu runtimeEnv.ts estiver em outra pasta
-import { ENV } from "../_core/runtimeEnv";
+/**
+ * Resolve URLs de forma segura em qualquer ambiente:
+ * - localhost
+ * - Vercel
+ * - GitHub Pages (subpath)
+ * - reverse proxy
+ */
+function resolveApiUrl(): string {
+  // prioridade 1: variável explícita
+  const raw =
+    import.meta.env.VITE_API_URL ||
+    import.meta.env.VITE_TRPC_URL ||
+    "";
 
-export const trpc = createTRPCReact<AppRouter>();
+  const cleaned = String(raw).trim();
 
-/** Extrai IDs do batch para conseguirmos devolver envelope de erro válido */
-function extractBatchIds(body: unknown): (string | number)[] {
-  try {
-    if (typeof body === "string" && body.length) {
-      const parsed = JSON.parse(body);
-      if (Array.isArray(parsed)) {
-        return parsed.map((op, idx) => (op?.id ?? idx)) as (string | number)[];
-      }
-      if (parsed && typeof parsed === "object" && "id" in parsed) {
-        // quando for uma chamada única
-        // @ts-expect-error parse leve
-        return [parsed.id as string | number];
-      }
-    }
-  } catch {
-    // ignore
+  // inválido / placeholder / vazio
+  if (
+    !cleaned ||
+    cleaned === "undefined" ||
+    cleaned === "null" ||
+    cleaned.startsWith("__")
+  ) {
+    return new URL("/trpc", window.location.origin).toString();
   }
-  // fallback: pelo menos 1 item para o cliente não quebrar
-  return [0];
+
+  // absoluto → usa direto
+  if (cleaned.startsWith("http://") || cleaned.startsWith("https://")) {
+    return cleaned;
+  }
+
+  // relativo → resolve pela origem
+  return new URL(
+    cleaned.startsWith("/") ? cleaned : `/${cleaned}`,
+    window.location.origin
+  ).toString();
 }
 
-/** Cria envelope de erro no formato batch que o tRPC espera */
-function makeBatchErrorEnvelope(
-  ids: (string | number)[],
-  message: string,
-  code: string = "INTERNAL_SERVER_ERROR",
-  httpStatus = 500
-) {
-  return ids.map((id) => ({
-    id,
-    error: {
-      json: { message, code, data: { code, httpStatus } },
-      meta: {},
-    },
-  }));
-}
-
+/**
+ * Cliente tRPC resiliente (NÃO explode com URL inválida)
+ */
 export function createTRPCClientBase() {
-  // monta a URL base a partir do runtime env quando disponível
-  const base = ENV.apiOrigin ? `${ENV.apiOrigin}/api/trpc` : "/api/trpc";
+  const url = resolveApiUrl();
 
-  return trpc.createClient({
-    transformer: superjson, // o transformer deve ser configurado no client
+  return createTRPCProxyClient<AppRouter>({
     links: [
       httpBatchLink({
-        url: base,
-        fetch: async (input, init) => {
-          // sempre enviar cookies/sessão
-          const initWithCreds: RequestInit = {
-            ...(init ?? {}),
+        url,
+        fetch(url, options) {
+          return fetch(url, {
+            ...options,
             credentials: "include",
-          };
-
-          // preserva os IDs do batch (para responder JSON válido mesmo em 5xx/HTML)
-          const ids = extractBatchIds(init?.body as unknown);
-
-          try {
-            const res = await fetch(input, initWithCreds);
-
-            const ct = res.headers.get("content-type") || "";
-            const isJson = ct.includes("application/json");
-
-            // Se o proxy/servidor devolver HTML ou 5xx, convertemos em JSON de batch
-            if (!isJson || res.status >= 500) {
-              const msg =
-                res.status >= 500
-                  ? `Service Unavailable (${res.status})`
-                  : "Invalid response from server";
-              return new Response(
-                JSON.stringify(makeBatchErrorEnvelope(ids, msg, "INTERNAL_SERVER_ERROR", res.status || 500)),
-                { status: 200, headers: { "content-type": "application/json" } }
-              );
-            }
-
-            return res;
-          } catch (err: any) {
-            const msg = err?.message || "Network error";
-            return new Response(
-              JSON.stringify(makeBatchErrorEnvelope(ids, msg)),
-              { status: 200, headers: { "content-type": "application/json" } }
-            );
-          }
+          });
         },
       }),
     ],
   });
 }
-
