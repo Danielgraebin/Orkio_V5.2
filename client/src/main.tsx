@@ -10,6 +10,8 @@ import "./index.css";
 
 const queryClient = new QueryClient();
 
+const isAbsoluteUrl = (s: string) => /^https?:\/\//i.test(s);
+
 const redirectToLoginIfUnauthorized = (error: unknown) => {
   if (!(error instanceof TRPCClientError)) return;
   if (typeof window === "undefined") return;
@@ -17,8 +19,16 @@ const redirectToLoginIfUnauthorized = (error: unknown) => {
   const isUnauthorized = error.message === UNAUTHED_ERR_MSG;
   if (!isUnauthorized) return;
 
-  // HashRouter → sempre redireciona corretamente no GitHub Pages
-  window.location.href = `#${getLoginUrl()}`;
+  const login = getLoginUrl();
+
+  // ✅ Se for OAuth (URL absoluta), vai direto
+  if (isAbsoluteUrl(login)) {
+    window.location.href = login;
+    return;
+  }
+
+  // ✅ Se for rota interna, usa HashRouter
+  window.location.hash = `#${login.startsWith("/") ? login : `/${login}`}`;
 };
 
 queryClient.getQueryCache().subscribe((event) => {
@@ -37,6 +47,7 @@ queryClient.getMutationCache().subscribe((event) => {
   }
 });
 
+// Use resilient tRPC client
 const trpcClient = createTRPCClientBase();
 
 createRoot(document.getElementById("root")!).render(
