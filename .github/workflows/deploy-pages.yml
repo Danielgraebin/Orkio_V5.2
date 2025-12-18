@@ -16,6 +16,9 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -24,22 +27,23 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
 
       - name: Install
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Build (Vite)
         env:
-          # ✅ IMPORTANTE: coloque aqui o nome EXATO do repositório
-          # Ex.: se o repo for "Orkio_V5.2", então BASE_PATH="/Orkio_V5.2/"
           BASE_PATH: "/Orkio_V5.2/"
-        run: npm run build
+        run: pnpm run build
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          # ✅ pasta gerada pelo Vite conforme vite.config.ts
           path: dist/public
 
   deploy:
@@ -50,4 +54,3 @@ jobs:
     steps:
       - name: Deploy
         uses: actions/deploy-pages@v4
-
